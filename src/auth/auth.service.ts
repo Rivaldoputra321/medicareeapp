@@ -1,0 +1,122 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { User } from 'src/entities/users.entity';
+import { UsersService } from 'src/users/users.service';
+import * as bcrypt from 'bcrypt';
+import { AuthDto } from './dto/auth.dto';
+
+const EXPIRE_TIME = 20 * 1000;
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private userService: UsersService,
+    private jwtService: JwtService,
+  ) {}
+
+  // Fungsi untuk validasi pengguna berdasarkan email dan password
+  async validateUser(authDto: AuthDto): Promise<User | null> {
+    try {
+      const user = await this.userService.findUserByEmail(authDto.email);
+      if (!user) {
+        console.log('User not found');
+        return null;
+      }
+
+      console.log('Password from input:', authDto.password);
+      console.log('Hashed password from DB:', user.password);
+
+      // Bandingkan password yang dimasukkan dengan hash password di database
+      const isPasswordValid = await bcrypt.compare(authDto.password, user.password);
+
+      if (isPasswordValid) {
+        return user;  // Passwords match
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error validating user:', error);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+  }
+
+  // Fungsi untuk login dan menghasilkan JWT token
+  async login(user: User) {
+    try {
+      user.status = 1;  // Set user status as active (logged in)
+    
+      // Payload untuk JWT
+      const payload = { sub: user.id, email: user.email, role: user.roleId, name: user.name };
+    
+      // Membuat token JWT dengan masa berlaku 1 jam
+      const accessToken = this.jwtService.sign(payload, {
+        secret: process.env.jwtSecretKey, 
+        expiresIn: '1h',
+      });
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: process.env.jwtRefreshTokenKey, 
+        expiresIn: '7d',
+      });
+
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      };
+    } catch (error) {
+      console.error('Error during login:', error);
+      throw new UnauthorizedException('Login failed');
+    }
+  }
+
+  // Fungsi untuk refresh token
+  async refreshToken(user: any) {
+    try {
+      const payload = {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.roleId,
+      };
+
+      return {
+        accessToken: await this.jwtService.signAsync(payload, {
+          expiresIn: '1d',
+          secret: process.env.jwtSecretKey,
+        }),
+        refreshToken: await this.jwtService.signAsync(payload, {
+          expiresIn: '7d',
+          secret: process.env.jwtRefreshTokenKey,
+        }),
+        expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
+      };
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      throw new UnauthorizedException('Token refresh failed');
+    }
+  }
+
+  // Fungsi untuk logout
+  async logout(token: string) {
+    try {
+      // Verifikasi dan decode token untuk mendapatkan detail pengguna
+      const decoded = await this.jwtService.verifyAsync(token, {
+        secret: process.env.jwtSecretKey,
+      });
+      const user = await this.userService.findUserById(decoded.sub);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Update user status in database (logout logic can vary based on implementation)
+      user.status = 0; // Set user status as inactive
+      await this.userService.updateUserStatus(user.id, 0);
+      return {
+        message: 'Logged out successfully',
+        statusCode: 200,
+      };
+    } catch (error) {
+      console.error('Error during logout:', error);
+      throw new UnauthorizedException('Invalid token');
+    }
+  }
+}
