@@ -13,10 +13,6 @@ export class UsersController {
     return this.userService.registerUser(createUserDto); // Pastikan method ini ada
   }
 
-  @Get()
-  findAll() {
-    return this.userService.findAllPatient();
-  }
 
   // @Get(':id')
   // findOne(@Param('id') id: string) {

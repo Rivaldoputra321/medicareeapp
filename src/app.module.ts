@@ -12,6 +12,7 @@ import { Role } from './entities/roles.entity';
 import { Spesialist } from './entities/spesialists.entity';
 import { User } from './entities/users.entity';
 import { source } from './data-source';
+import { PatientModule } from './patient/patient.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { source } from './data-source';
     UsersModule,
     SpesialistModule,
     DoctorModule,
+    PatientModule,
   ],
 })
 export class AppModule {}

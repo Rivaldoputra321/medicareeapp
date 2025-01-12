@@ -27,7 +27,7 @@ export class AuthService {
       console.log('Hashed password from DB:', user.password);
 
       // Bandingkan password yang dimasukkan dengan hash password di database
-      const isPasswordValid = await bcrypt.compare(authDto.password, user.password);
+      const isPasswordValid = await bcrypt.compare(authDto.password + user.salt, user.password);
 
       if (isPasswordValid) {
         return user;  // Passwords match
@@ -43,10 +43,23 @@ export class AuthService {
   // Fungsi untuk login dan menghasilkan JWT token
   async login(user: User) {
     try {
-      user.status = 1;  // Set user status as active (logged in)
+      user.status = 1; // Set user status as inactive
+      await this.userService.updateUserStatus(user.id, 1);  // Set user status as active (logged in)
     
       // Payload untuk JWT
-      const payload = { sub: user.id, email: user.email, role: user.roleId, name: user.name };
+      
+      const baseUrl = 'http://localhost:8000';
+
+      const payload = { 
+        sub: user.id, 
+        email: user.email, 
+        roleId: user.roleId, 
+        name: user.name,
+        // Tambahkan full URL untuk photo_profile jika ada
+        photo_profile: user.photo_profile 
+          ? `${baseUrl}/uploads/${user.photo_profile}`
+          : null
+      };
     
       // Membuat token JWT dengan masa berlaku 1 jam
       const accessToken = this.jwtService.sign(payload, {
@@ -69,31 +82,49 @@ export class AuthService {
   }
 
   // Fungsi untuk refresh token
-  async refreshToken(user: any) {
+  async refreshToken(refresh_token: string) {
     try {
+      // Verifikasi refresh token untuk mendapatkan payload
+      const decoded = await this.jwtService.verifyAsync(refresh_token, {
+        secret: process.env.jwtRefreshTokenKey,
+      });
+  
+      // Validasi payload dan dapatkan informasi user
+      const user = await this.userService.findUserById(decoded.sub); // Sesuaikan dengan service Anda
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+  
       const payload = {
         sub: user.id,
         email: user.email,
         name: user.name,
-        role: user.roleId,
+        roleId: user.roleId,
       };
-
+  
+      // Generate tokens baru
+      const accessToken = await this.jwtService.signAsync(payload, {
+        expiresIn: '1d',
+        secret: process.env.jwtSecretKey,
+      });
+  
+      const newRefreshToken = await this.jwtService.signAsync(payload, {
+        expiresIn: '7d',
+        secret: process.env.jwtRefreshTokenKey,
+      });
+  
+      // Kirim response dengan token baru
       return {
-        accessToken: await this.jwtService.signAsync(payload, {
-          expiresIn: '1d',
-          secret: process.env.jwtSecretKey,
-        }),
-        refreshToken: await this.jwtService.signAsync(payload, {
-          expiresIn: '7d',
-          secret: process.env.jwtRefreshTokenKey,
-        }),
-        expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
+        accessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 hari
       };
     } catch (error) {
-      console.error('Error refreshing token:', error);
+      console.error('Error refreshing token:', error.message);
       throw new UnauthorizedException('Token refresh failed');
     }
   }
+  
 
   // Fungsi untuk logout
   async logout(token: string) {

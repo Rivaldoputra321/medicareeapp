@@ -30,77 +30,144 @@ export class DoctorService {
 
   private readonly dataSource: DataSource
 ){}
-  async create(createDoctorDto: CreateDoctorDto): Promise<User> {
-    const queryRunner = this.dataSource.createQueryRunner();
+async create(createDoctorDto: CreateDoctorDto): Promise<User> {
+  const existingUser = await this.userRepository.findOne({
+    where: { email: createDoctorDto.email },
+  });
   
-    // Mulai transaksi
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  if (existingUser) {
+    throw new HttpException('Email sudah terdaftar', HttpStatus.BAD_REQUEST);
+  }
+
+  const doctorRole = await this.roleRepository.findOne({
+    where: { name: peran.DOCTOR },
+  });
   
-    try {
-      // Periksa apakah email sudah terdaftar
-      const existingUser = await this.userRepository.findOne({
-        where: { email: createDoctorDto.email },
-      });
-      if (existingUser) {
-        throw new HttpException('Email sudah terdaftar', HttpStatus.BAD_REQUEST);
-      }
+  if (!doctorRole) {
+    throw new HttpException('Role doctor tidak ditemukan', HttpStatus.NOT_FOUND);
+  }
+
+  const spesialist = await this.spesialistRepository.findOne({
+    where: { id: createDoctorDto.spesialist },
+  });
   
-      // Buat user baru
-      const user = new User();
-      user.name = createDoctorDto.name;
-      user.email = createDoctorDto.email;
-      user.salt = uuidv4();
-      user.password = bcrypt.hashSync(createDoctorDto.password + user.salt, 10);
-      user.photo_profile = createDoctorDto.photo_profile;
-      user.status = 0;
-  
-      // Periksa apakah role DOCTOR tersedia
-      const doctorRole = await this.roleRepository.findOne({
-        where: { name: peran.DOCTOR },
-      });
-      if (!doctorRole) {
-        throw new HttpException('Role doctor tidak ditemukan', HttpStatus.NOT_FOUND);
-      }
-      user.role = doctorRole;
-  
-      // Simpan user menggunakan QueryRunner
-      const savedUser = await queryRunner.manager.save(User, user);
-  
-      // Periksa spesialisasi berdasarkan ID
-      const spesialist = await this.spesialistRepository.findOne({
-        where: { id: createDoctorDto.spesialist },
-      });
-      if (!spesialist) {
-        throw new HttpException('Spesialisasi tidak ditemukan', HttpStatus.NOT_FOUND);
-      }
-  
-      // Buat doctor baru
-      const doctor = new Doctor();
-      doctor.user = savedUser;
-      doctor.spesialist = spesialist;
-      doctor.experience = createDoctorDto.experience;
-      doctor.alumnus = createDoctorDto.alumnus;
-      doctor.no_str = createDoctorDto.no_str;  
-      doctor.price = createDoctorDto.price || null;
-      // Simpan doctor menggunakan QueryRunner
-      await queryRunner.manager.save(Doctor, doctor);
-  
-      // Commit transaksi jika semua berhasil
-      await queryRunner.commitTransaction();
-  
-      return savedUser;
-    } catch (error) {
-      // Rollback transaksi jika terjadi kesalahan
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      // Akhiri koneksi QueryRunner
-      await queryRunner.release();
+  if (!spesialist) {
+    throw new HttpException('Spesialisasi tidak ditemukan', HttpStatus.NOT_FOUND);
+  }
+
+  const user = new User();
+  user.name = createDoctorDto.name;
+  user.email = createDoctorDto.email;
+  user.salt = uuidv4();
+  user.password = bcrypt.hashSync(createDoctorDto.password + user.salt, 10);
+  user.photo_profile = createDoctorDto.photo_profile;
+  user.status = 0;
+  user.role = doctorRole;
+
+  const savedUser = await this.userRepository.save(user);
+
+  const doctor = new Doctor();
+  doctor.user = savedUser;
+  doctor.spesialist = spesialist;
+  doctor.experience = createDoctorDto.experience;
+  doctor.alumnus = createDoctorDto.alumnus;
+  doctor.no_str = createDoctorDto.no_str;
+  doctor.price = createDoctorDto.price || null;
+
+  await this.doctorRepository.save(doctor);
+
+  return savedUser;
+}
+
+async updateDoctor(doctorId: string, updateDoctorDto: UpdateDoctorDto, file?: Express.Multer.File): Promise<Doctor> {
+  const doctor = await this.doctorRepository.findOne({
+    where: { id: doctorId },
+    relations: ['user', 'spesialist'],
+  });
+
+  if (!doctor) {
+    throw new NotFoundException('Doctor not found');
+  }
+
+  const user = doctor.user;
+
+  if (updateDoctorDto.name) {
+    user.name = updateDoctorDto.name;
+  }
+
+  if (updateDoctorDto.email) {
+    const existingUser = await this.userRepository.findOne({
+      where: { email: updateDoctorDto.email, id: Not(user.id) },
+    });
+    
+    if (existingUser) {
+      throw new HttpException('Email already in use', HttpStatus.BAD_REQUEST);
     }
+    user.email = updateDoctorDto.email;
+  }
+  if (file) {
+    const oldPhotoPath = join(__dirname, '..', '..', 'uploads', 'doctors', user.photo_profile);
+    if (fs.existsSync(oldPhotoPath)) {
+      fs.unlinkSync(oldPhotoPath);
+    }
+    user.photo_profile = file.filename;
+  }
+
+  await this.userRepository.save(user);
+
+  if (updateDoctorDto.spesialist) {
+    const spesialist = await this.spesialistRepository.findOne({
+      where: { id: updateDoctorDto.spesialist },
+    });
+    
+    if (!spesialist) {
+      throw new HttpException('Spesialist not found', HttpStatus.NOT_FOUND);
+    }
+    doctor.spesialist = spesialist;
+  }
+
+  if (updateDoctorDto.experience) doctor.experience = updateDoctorDto.experience;
+  if (updateDoctorDto.alumnus) doctor.alumnus = updateDoctorDto.alumnus;
+  if (updateDoctorDto.no_str) doctor.no_str = updateDoctorDto.no_str;
+  if (updateDoctorDto.price !== undefined) doctor.price = updateDoctorDto.price;
+
+  return this.doctorRepository.save(doctor);
+}
+  
+
+async updateProfile(doctorId: string, updateDoctorDto: UpdateDoctorDto, file?: Express.Multer.File): Promise<Doctor> {
+  const doctor = await this.doctorRepository.findOne({
+    where: { id: doctorId },
+    relations: ['user'],
+  });
+
+  if (!doctor) {
+    throw new NotFoundException('Doctor not found');
+  }
+
+  if (file) {
+    const oldPhotoPath = join(__dirname, '..', '..', 'uploads', 'doctors', doctor.user.photo_profile);
+    if (doctor.user.photo_profile && fs.existsSync(oldPhotoPath)) {
+      fs.unlinkSync(oldPhotoPath);
+    }
+    doctor.user.photo_profile = file.filename;
+  }
+
+  if (updateDoctorDto.name) {
+    doctor.user.name = updateDoctorDto.name;
   }
   
+  if (updateDoctorDto.experience) {
+    doctor.experience = updateDoctorDto.experience;
+  }
+
+  await this.userRepository.save(doctor.user);
+  return this.doctorRepository.save(doctor);
+}
+
   
+  
+  //delete doctor
   async delete(doctorId: string): Promise<void> {
     const doctor = await this.doctorRepository.findOne({ where: { id: doctorId } });
     if (!doctor) {
@@ -110,6 +177,8 @@ export class DoctorService {
     await this.doctorRepository.softDelete(doctorId);
   }
 
+
+//restore doctor
   async restore(doctorId: string): Promise<void> {
     const deletedDoctor = await this.doctorRepository.findOne({
       where: { id: doctorId },
@@ -153,7 +222,7 @@ export class DoctorService {
     const transformedDoctors = doctors.map(doctor => {
       // Transform doctor's photo_profile if exists
       if (doctor.user.photo_profile) {
-        doctor.user.photo_profile = `${baseUrl}/uploads/${doctor.user.photo_profile}`;
+        doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${doctor.user.photo_profile}`;
         if(!baseUrl){
           throw new Error('Base URL is not defined');
         }
@@ -172,4 +241,24 @@ export class DoctorService {
       totalPages: Math.ceil(total / limit),};
   }
   
+  async getDoctorById(id: string) { 
+    const doctor = await this.doctorRepository.createQueryBuilder('doctors')
+      .leftJoinAndSelect('doctors.spesialist', 'spesialist')
+      .leftJoin('doctors.user', 'user')
+      .addSelect(['user.id', 'user.name', 'user.photo_profile', 'user.status'])
+      .where('doctors.id = :id', { id })
+      .getOne();
+  
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+    if (doctor.user.photo_profile) {
+      const baseUrl =  'http://localhost:8000';
+      doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${doctor.user.photo_profile}`;
+    }
+
+
+  
+    return doctor;
+  }
 }

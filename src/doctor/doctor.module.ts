@@ -10,7 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 
 
 @Module({
-  imports :  [TypeOrmModule.forFeature([User,Role,Doctor,Spesialist]),],
+  imports :  [TypeOrmModule.forFeature([User,Role,Doctor,Spesialist])],
+  exports: [DoctorService],
   controllers: [DoctorController],
   providers: [DoctorService, JwtService],
 })

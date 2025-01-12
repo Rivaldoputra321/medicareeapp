@@ -4,4 +4,6 @@ export class CreateSpesialistDto {
     @IsString()
     name:  string;
 
+    gambar:  string;
+
 }

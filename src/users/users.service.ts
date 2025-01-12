@@ -73,42 +73,7 @@ export class UsersService {
     }
     return user;
   }
-
-  async findAllPatient() {
-    return this.userRepository.find({
-      where: { role: { name: peran.PATIENT } },
-      relations: ['patient'],
-    });
-  }
-
-  // Fungsi untuk menghapus user dan data pasien terkait
-  async deleteUser(id: string): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id }, relations: ['patient'] });
-    if (!user) {
-      throw new HttpException('User tidak ditemukan', HttpStatus.NOT_FOUND);
-    }
-
-    // Hapus data pasien jika ada
-    if (user.patient) {
-      await this.patientRepository.delete(user.patient.id);
-    }
-
-    await this.userRepository.delete(id);
-  }
-
-  // Fungsi untuk mendapatkan detail user berdasarkan ID
-  async findPatientById(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      relations: ['patient', 'role'], // Mengambil data relasi jika diperlukan
-    });
-
-    if (!user) {
-      throw new HttpException('User tidak ditemukan', HttpStatus.NOT_FOUND);
-    }
-
-    return user;
-  }
+  
 
   async findUserById(id: string): Promise<User> {
     const user = await this.userRepository.findOne({

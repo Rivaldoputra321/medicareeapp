@@ -32,12 +32,20 @@ export class AuthController {
       return this.userService.registerUser(createUserDto); // Pastikan method ini ada
     }
 
-    @UseGuards(RefreshJwtGuard)
-    @Post('refresh')
     async refreshToken(@Request() req) {
-      console.log('refreshed');
-
-      return await this.authService.refreshToken(req.user);
+      try {
+        // Ambil refresh token dari cookies
+        const refreshToken = req.cookies?.refreshToken;
+        if (!refreshToken) {
+          throw new UnauthorizedException('Refresh token is required');
+        }
+  
+        // Proses refresh token melalui service
+        return await this.authService.refreshToken(refreshToken);
+      } catch (error) {
+        console.error('Error refreshing token:', error.message);
+        throw new UnauthorizedException('Failed to refresh token');
+      }
     }
    
     @UseGuards(JwtGuard)

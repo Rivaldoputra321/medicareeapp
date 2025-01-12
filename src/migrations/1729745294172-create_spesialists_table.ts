@@ -18,6 +18,11 @@ export class CreateSpesialistsTable1729745294172 implements MigrationInterface {
                         name: 'name',
                         type: 'varchar',
                     },
+
+                    {
+                        name: 'gambar',
+                        type: 'varchar',
+                    },
                     {
                         name: 'created_at',
                         type: 'timestamp',

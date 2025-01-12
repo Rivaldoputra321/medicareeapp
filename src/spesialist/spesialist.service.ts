@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSpesialistDto } from './dto/create-spesialist.dto';
 import { UpdateSpesialistDto } from './dto/update-spesialist.dto';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Spesialist } from 'src/entities/spesialists.entity';
 import { Doctor } from 'src/entities/doctors.entity';
@@ -43,26 +43,52 @@ export class SpesialistService {
     // Apply pagination
     queryBuilder.skip((page - 1) * limit).take(limit);
 
-    // Get total count for pagination metadata
     const [data, total] = await queryBuilder.getManyAndCount();
 
+    const baseUrl = 'http://localhost:8000';
+    const transformedSpesialists = data.map(data => {
+      // Transform doctor's photo_profile if exists
+      if (data.gambar) {
+        data.gambar = `${baseUrl}/uploads/spesialis/${data.gambar}`;
+        if(!baseUrl){
+          throw new Error('Base URL is not defined');
+        }
+      }
+
+      return data;
+    });
+
     return {
-      data,
+      data: transformedSpesialists,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     };
   }
-  async findAllWithoutPagination(){
+  async findAllWithoutPagination() {
     try {
       const spesialist = await this.spesialistRepository.find();
-      return spesialist; 
+  
+      const baseUrl = 'http://localhost:8000';
+      if (!baseUrl) {
+        throw new Error('Base URL is not defined');
+      }
+  
+      const transformedSpesialists = spesialist.map(item => {
+        // Transform doctor's `gambar` if it exists
+        if (item.gambar) {
+          item.gambar = `${baseUrl}/uploads/spesialis/${item.gambar}`;
+        }
+        return item;
+      });
+  
+      return transformedSpesialists;
     } catch (error) {
       throw new Error(`Failed to fetch specialists: ${error.message}`);
     }
-
   }
+  
 
   async searchDoctorSpesialist(
     page: number = 1, 
@@ -101,7 +127,7 @@ export class SpesialistService {
     const transformedDoctors = doctors.map(doctor => {
       // Transform doctor's photo_profile if exists
       if (doctor.user.photo_profile) {
-        doctor.user.photo_profile = `${baseUrl}/uploads/${doctor.user.photo_profile}`;
+        doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${doctor.user.photo_profile}`;
         if(!baseUrl){
           throw new Error('Base URL is not defined');
         }
@@ -124,26 +150,52 @@ export class SpesialistService {
 
   async findOne(id: string) {
     const spesialist = await this.spesialistRepository.findOne({ where: { id } });
+    
     if (!spesialist) {
       throw new NotFoundException(`Spesialist with ID ${id} not found`);
     }
+  
+    const baseUrl = 'http://localhost:8000';
+    if (!baseUrl) {
+      throw new Error('Base URL is not defined');
+    }
+  
+    // Transform the doctor's `gambar` if it exists
+    if (spesialist.gambar) {
+      spesialist.gambar = `${baseUrl}/uploads/spesialis/${spesialist.gambar}`;
+    }
+  
     return spesialist;
   }
-
+  
   async update(id: string, updateSpesialistDto: UpdateSpesialistDto) {
+    // Temukan spesialist berdasarkan ID
+    const spesialist = await this.spesialistRepository.findOne({ where: { id } });
+    
+    if (!spesialist) {
+      throw new NotFoundException('Spesialis tidak ditemukan');
+    }
+  
+    // Cek apakah nama yang ingin diupdate sudah ada pada spesialis lain
     const existingSpesialist = await this.spesialistRepository.findOne({
-      where: { name: updateSpesialistDto.name },
+      where: { name: updateSpesialistDto.name, id: Not(id) }, // Pastikan ID berbeda
     });
+  
     if (existingSpesialist) {
       throw new ConflictException('Spesialis dengan nama ini sudah ada');
     }
+  
+    // Lakukan update
     await this.spesialistRepository.update(id, updateSpesialistDto);
+  
+    // Kembalikan spesialis yang telah diupdate
     return this.findOne(id);
   }
+  
 
   
 
-  async remove(id: string) {
+  async delete(id: string) {
     const spesialist = await this.findOne(id);
     if (!spesialist) {
       throw new NotFoundException(`Spesialist with ID ${id} not found`);
@@ -159,4 +211,44 @@ export class SpesialistService {
     }
     return { message: `Spesialist with ID ${id} has been restored` };
   }
+
+  async getDeletedSpesialis(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ) {
+    const queryBuilder = this.spesialistRepository
+      .createQueryBuilder('spesialists')
+      .withDeleted() // Include soft-deleted records
+      .where('spesialists.deleted_at IS NOT NULL'); // Filter only soft-deleted records
+  
+    // Apply search if provided
+    if (search) {
+      queryBuilder.andWhere('spesialists.name ILIKE :search', {
+        search: `%${search}%`,
+      });
+    }
+  
+    // Apply pagination
+    queryBuilder.skip((page - 1) * limit).take(limit);
+  
+    const [data, total] = await queryBuilder.getManyAndCount();
+  
+    const baseUrl = 'http://localhost:8000';
+    const transformedSpesialists = data.map((data) => {
+      if (data.gambar) {
+        data.gambar = `${baseUrl}/uploads/spesialis/${data.gambar}`;
+      }
+      return data;
+    });
+  
+    return {
+      data: transformedSpesialists,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+  
 }

@@ -24,8 +24,8 @@ export async function seedAdmin(source: DataSource) {
     }
 
     // Hash password untuk admin
-    const salt = bcrypt.genSaltSync(10);
-    const hashedPassword = bcrypt.hashSync('admin123', salt);
+    const salt = uuidv4();
+    const hashedPassword = bcrypt.hashSync('admin123' + salt, 10);
 
     // Buat pengguna admin
     const adminUser = userRepository.create({
