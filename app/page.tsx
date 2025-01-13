@@ -1,78 +1,136 @@
-import Head from "next/head";
-import { FaGoogle, 
-  FaRegEnvelope } 
-  from 'react-icons/fa';
-  import {MdLockOutline} from 'react-icons/md';
+'use client';
+
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { Search } from 'lucide-react';
+import Navbar from "@/app/component/navbar";
+import { fetchSpesialists, Spesialist } from '@/utils/spesialist';
+import defaultImage from '../public/bedah.png';
 
 export default function Home() {
-  return(
-    <div className="flex flex-col items-center justify-center min-h-screen py-2 bg-gray-100">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+    const [specialists, setSpecialists] = useState<Spesialist[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const router = useRouter();
 
-      <main className="flex flex-col items-center justify-center w-full flex-1 px-20 text-center">
-        <div className="bg-white text-black rounded-2xl shadow-2xl flex w-2/3 max-w-4xl">
-          <div className="w-3/5 p-5">
-            <div className="text-left font-bold">
-             <span className="text-green-500">Medi</span>Care
-           </div>
-           <div className="py-10">
-            <h2 className="text-3xl font-bold text-green-500 mb-2">
-              Sign in to Account
-              </h2>
-            <div className="border-2 w-10 border-green-500 inline-block mb-2"></div>
-            <div className="flex justify-items-center my-2">
-              <a href="#" className="border-2 border-gray-200 rounded-full p-3 mx-56">
-               <FaGoogle className="text-sm" />
-              </a>
-            </div>{/* Social login section */}
-            <p className="text-gray-400 my-3">or use your email account</p>
-            <div className="flex flex-col items-center">
-              <div className="bg-gray-100 w-64 p-2 flex items-center mb-3">
-                <FaRegEnvelope className="text-gray-400 m-2" />
-                <input type="email" name="email" placeholder="Email" className="bg-gray-100 outline-none text-sm
-                flex-1" />
-              </div>
+    useEffect(() => {
+        const loadSpecialists = async () => {
+            try {
+                const data = await fetchSpesialists();
+                setSpecialists(data);
+            } catch (err) {
+                setError('Failed to load specialists. Please try again later.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadSpecialists();
+    }, []);
 
-              <div className="bg-gray-100 w-64 p-2 flex items-center">
-                <MdLockOutline className="text-gray-400 m-2" />
-                <input type="password" name="password" placeholder="Password" className="bg-gray-100 outline-none text-sm
-                flex-1" />
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchTerm.trim()) {
+            router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
+            <Navbar />
+
+            <main className="pt-20 pb-16">
+                {/* Hero section with enhanced gradient */}
+                <div className="bg-gradient-to-br from-green-100 via-green-50 to-white py-16 px-4 shadow-lg">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center mb-10">
+                            <h1 className="text-4xl font-bold text-green-800 mb-4 animate-fade-in">
+                                Medicare
+                            </h1>
+                            <p className="text-lg text-green-700">
+                                Temukan dokter spesialis terbaik untuk kebutuhan Anda
+                            </p>
+                        </div>
+
+                        <div className="max-w-4xl mx-auto">
+                            <form onSubmit={handleSearch} className="flex gap-3">
+                                <div className="flex-1 relative">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                                        <Search className="text-green-500" size={20} />
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari Dokter, spesialisasi, atau rumah sakit"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-4 rounded-lg border border-green-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 shadow-md hover:shadow-lg transition-shadow bg-white/80 backdrop-blur-sm"
+                                    />
+                                </div>
+                                <button 
+                                    type="submit" 
+                                    className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold rounded-lg hover:from-green-500 hover:to-green-400 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                                >
+                                    Cari
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex justify-between w-64 mb-5">
-                  <label className="flex items-center text-xs"><input type="checkbox" name="remember"
-                   className="mr-1"/> Remember Me</label>
-                   <a href="#" className="text-xs">Forgot Password?</a>
-              </div>
-              <a 
-           href="#" className="border-2 border-green-500 text-green-500 rounded-full px-12 py-2 inline-block font-semibold hover:bg-green-500
-           hover:text-white"
-        >
-          Sign in
-          </a>
-            </div>
-           </div>
+                {/* Specialists section with enhanced cards */}
+                <section className="max-w-7xl mx-auto px-4 mt-16">
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h2 className="text-2xl font-bold text-green-800">Spesialisasi Medis</h2>
+                            <p className="text-green-600 mt-1">Berbagai pilihan spesialisasi dokter</p>
+                        </div>
+                    </div>
+
+                    {isLoading ? (
+                        <div className="text-center py-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-500 border-t-transparent mx-auto"></div>
+                            <p className="text-green-600 mt-4">Memuat spesialisasi...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-12 bg-red-50 rounded-lg">
+                            <p className="text-red-600">{error}</p>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="mt-4 text-red-600 hover:text-red-700 underline"
+                            >
+                                Coba lagi
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {specialists.map((specialist) => (
+                                <Link 
+                                    key={specialist.id} 
+                                    href={`/doctors/${specialist.id}?spesialistName=${encodeURIComponent(specialist.name)}`}
+                                    className="group"
+                                >
+                                    <div className="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 text-center h-full border border-green-100 hover:border-green-200 transform hover:-translate-y-1">
+                                        <div className="relative mb-4 mx-auto w-24 h-24">
+                                            <Image 
+                                                src={specialist.gambar || defaultImage} 
+                                                alt={`${specialist.name} icon`} 
+                                                width={96} 
+                                                height={96} 
+                                                className="object-contain transform group-hover:scale-110 transition-transform duration-300"
+                                            />
+                                        </div>
+                                        <h3 className="text-green-700 font-semibold group-hover:text-green-500 transition-colors">
+                                            {specialist.name}
+                                        </h3>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </main>
         </div>
-        {/* Sign in section */}
-        <div className="w-2/5 bg-green-500 text-white rounded-tr-2xl rounded-br-2xl py-36 px-12">
-        <h2 className="text-3xl font-bold mb-2">Welcome</h2>
-        <div className="border-2 w-10 border-white inline-block"></div>
-        <p className="mb-10">Konsultasi, Buat janji, dan kunjungi rumah sakit sekarang tersedia di MediCare!
-          </p> 
-        <a 
-           href="#" className="border-2 border-white rounded-full px-12 py-2 inline-block font-semibold hover:bg-white
-           hover:text-green-500"
-        >
-          Sign up
-          </a>
-        </div>
-        {/* Sign up section */}
-       </div>
-        
-      </main>
-    </div>
-  )
+    );
 }
