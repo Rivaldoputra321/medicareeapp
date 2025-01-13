@@ -24,9 +24,6 @@ export class Patient {
   @Column({type: 'enum', enum : genders})
   gender: genders;
 
-  @Column({unique: true})
-  telp: string
-
   @Column({type: 'timestamp', default:() =>  'CURRENT_TIMESTAMP' })
   created_at: Date;
   

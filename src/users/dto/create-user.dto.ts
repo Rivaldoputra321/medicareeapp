@@ -27,9 +27,4 @@ export class CreateUserDto {
   @IsEnum(genders)
   gender: genders;
 
-  @IsNotEmpty()
-  @IsString()
-  telp: string;
-
-
 }

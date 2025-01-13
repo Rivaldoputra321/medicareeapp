@@ -13,11 +13,17 @@ import { Spesialist } from './entities/spesialists.entity';
 import { User } from './entities/users.entity';
 import { source } from './data-source';
 import { PatientModule } from './patient/patient.module';
+import { Transaction } from './entities/transactions.entity';
+import { AppointmentModule } from './appointment/appointment.module';
+import { MidtransModule } from './midtrans/midtrans.module';
+import { EmailModule } from './email/email.module';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // Tersedia di seluruh modul
+      load: [configuration],
+      isGlobal: true,
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule, TypeOrmModule.forRoot(source.options),],
@@ -29,7 +35,7 @@ import { PatientModule } from './patient/patient.module';
         username: configService.get<string>('POSTGRES_USER'),
         password: configService.get<string>('POSTGRES_PASSWORD'),
         database: configService.get<string>('POSTGRES_DB'),
-        entities: [User, Role, Spesialist, Doctor, Patient, Appointment],
+        entities: [User, Role, Spesialist, Doctor, Patient, Appointment, Transaction],
         migrations: ['dist/migrations/*.js'],
         synchronize: false,
       }),
@@ -39,6 +45,9 @@ import { PatientModule } from './patient/patient.module';
     SpesialistModule,
     DoctorModule,
     PatientModule,
+    AppointmentModule,
+    MidtransModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

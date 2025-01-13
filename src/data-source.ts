@@ -5,6 +5,7 @@ import { Patient } from './entities/patients.entity';
 import { Appointment } from './entities/appoinments.entity';
 import { User } from './entities/users.entity';
 import { Spesialist } from './entities/spesialists.entity';
+import { Transaction } from './entities/transactions.entity';
 
 
 export const source  = new DataSource({
@@ -14,7 +15,7 @@ export const source  = new DataSource({
   username: 'postgres',
   password: '16781741',
   database: 'medicare',
-  entities: [Role, User, Patient, Doctor, Appointment, Spesialist],
+  entities: [Role, User, Patient, Doctor, Appointment, Spesialist, Transaction],
   migrations: ['dist/migrations/*.js'], // tentukan di mana migrasi akan disimpan
   synchronize: false,
 });

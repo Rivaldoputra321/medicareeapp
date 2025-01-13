@@ -4,11 +4,15 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import * as cookieParser from 'cookie-parser';
+import { ConfigService } from '@nestjs/config';
+import * as ngrok from 'ngrok';
 
 
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  ngrok.authtoken('2rZOXqnKFp1VS1RXaY81g3cfJUL_26c8VkYqnCQAovQgrbb9a');
+
 
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
@@ -34,9 +38,11 @@ async function bootstrap() {
       'Access-Control-Allow-Headers',
     ],
   });
-  
-  // await seedDatabase(source);
   await app.listen(8000);
+  
+  const url = await ngrok.connect(8000); // Ganti dengan port yang sama dengan yang digunakan di app.listen()
+  console.log(`Aplikasi dapat diakses melalui URL: ${url}`);
+
 
 }
 bootstrap();

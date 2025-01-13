@@ -1,8 +1,22 @@
+import { AppointmentStatus } from "src/entities/appoinments.entity";
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from "typeorm";
 
 export class CreateAppointmentsTable1729745369018 implements MigrationInterface {
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
+            CREATE TYPE appointment_status_enum AS ENUM (
+                'PENDING', 
+                'APPROVED', 
+                'REJECTED', 
+                'RESCHEDULED', 
+                'AWAITING_PAYMENT', 
+                'PAID', 
+                'IN_PROGRESS', 
+                'COMPLETED',
+                'CANCELLED'
+            );
+        `);
         await queryRunner.createTable(
             new Table({
                 name: 'appointments',
@@ -29,24 +43,62 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         type: 'timestamp',
                     },
                     {
-                        name: 'note',
-                        type: 'varchar',
+                        name: "status",
+                        type: "enum",
+                        enumName: "appointment_status_enum",
+                        enum: [
+                            'PENDING', 
+                            'APPROVED', 
+                            'REJECTED', 
+                            'RESCHEDULED',
+                            'AWAITING_PAYMENT',
+                            'PAID',
+                            'IN_PROGRESS',
+                            'COMPLETED',
+                            'CANCELLED'
+                        ],
+                        default: "'PENDING'::appointment_status_enum"
                     },
                     {
-                        name: 'link',
-                        type: 'varchar',
+                        name: "rejection_reason",
+                        type: "varchar",
+                        isNullable: true
                     },
+                    {
+                        name: "meeting_link",
+                        type: "varchar",
+                        isNullable: true
+                    },
+                    {
+                        name: "meeting_link_expired",
+                        type: "timestamp",
+                        isNullable: true
+                    },
+                    {
+                        name: "link_sent_at",
+                        type: "timestamp",
+                        isNullable: true
+                    },
+
                     {
                         name: 'total_price',
-                        type: 'double precision', 
+                        type: 'decimal', 
+                    },
+                    
+                    {
+                        name: "reschedule_count",
+                        type: "int",
+                        default: 0
                     },
                     {
-                        name: 'start',
-                        type: 'timestamp',
+                        name: "is_patient_present",
+                        type: "boolean",
+                        default: false
                     },
                     {
-                        name: 'end',
-                        type: 'timestamp',
+                        name: "is_doctor_present",
+                        type: "boolean",
+                        default: false
                     },
                     {
                         name: 'created_at',

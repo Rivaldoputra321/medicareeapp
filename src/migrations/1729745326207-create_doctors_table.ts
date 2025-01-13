@@ -43,6 +43,11 @@ export class CreateDoctorsTable1729745326207 implements MigrationInterface {
                         isNullable: true
                     },
                     {
+                        name: 'file_str',
+                        type: 'varchar',
+                        isNullable: true,
+                    },
+                    {
                         name: 'created_at',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',

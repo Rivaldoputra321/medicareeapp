@@ -51,7 +51,6 @@ export class UsersService {
       patient.user = savedUser;
       patient.date_of_birth = createUserDto.date_of_birth;
       patient.gender = createUserDto.gender;
-      patient.telp = createUserDto.telp;
   
       await this.patientRepository.save(patient);
   

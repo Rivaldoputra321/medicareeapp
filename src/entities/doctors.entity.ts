@@ -26,8 +26,11 @@ export class Doctor {
   @Column({unique: true})
   no_str: string
 
-  @Column({ type: 'numeric', nullable: true }) 
+  @Column({ type: 'decimal' }) 
   price: number; 
+
+  @Column({nullable: true})
+  file_str: string;
 
   @Column({type: 'timestamp', default:() =>  'CURRENT_TIMESTAMP' })
   created_at: Date;

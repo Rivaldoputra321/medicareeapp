@@ -14,6 +14,8 @@ export class CreateDoctorDto {
   @IsNotEmpty()
   password: string;
 
+  file_str: string;
+  
   photo_profile: string;
 
   // Patient-specific fields
@@ -36,7 +38,6 @@ export class CreateDoctorDto {
 
 
   @IsNotEmpty()
-
   price: number;
 
 }

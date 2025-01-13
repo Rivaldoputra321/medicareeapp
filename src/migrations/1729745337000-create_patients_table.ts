@@ -29,11 +29,6 @@ export class CreatePatientsTable1729745337000 implements MigrationInterface {
                         enum: ['male', 'female'],
                     },
                     {
-                        name: 'telp',
-                        type: 'varchar',
-                        isUnique: true,
-                    },
-                    {
                         name: 'created_at',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',
