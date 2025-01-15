@@ -8,9 +8,14 @@ export class UpdateAppointmentStatusDto {
     @IsString()
     @IsOptional()
     rejectionReason?: string;
+
+    status : string;
   }
+
+  
   
   export class SetMeetingLinkDto {
     @IsString()
     meetingLink: string;
   }
+

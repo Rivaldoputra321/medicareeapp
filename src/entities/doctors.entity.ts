@@ -26,8 +26,8 @@ export class Doctor {
   @Column({unique: true})
   no_str: string
 
-  @Column({ type: 'decimal' }) 
-  price: number; 
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  price: number;
 
   @Column({nullable: true})
   file_str: string;

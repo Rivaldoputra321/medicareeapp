@@ -28,7 +28,8 @@ export class CreateTransactionsTable1736678360662 implements MigrationInterface 
                     {
                         name: "midtrans_order_id",
                         type: "varchar",
-                        isUnique: true
+                        isUnique: true,
+                        isNullable: true
                     },
                     {
                         name: "midtrans_transaction_id",

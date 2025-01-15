@@ -99,4 +99,33 @@ export class EmailService implements OnModuleInit {
       html,
     );
   }
+
+  async sendMeetingReminder(appointment: Appointment) {
+    console.log('Generating reminder template for appointment:', appointment.id);
+    const html = this.emailTemplateService.getMeetingReminderTemplate(appointment);
+    
+    console.log('Sending reminder emails to:', {
+      doctor: appointment.doctor.user.email,
+      patient: appointment.patient.user.email
+    });
+    
+    try {
+      await Promise.all([
+        this.sendMail(
+          appointment.doctor.user.email,
+          'Upcoming Appointment Reminder',
+          html
+        ),
+        this.sendMail(
+          appointment.patient.user.email,
+          'Upcoming Appointment Reminder',
+          html
+        )
+      ]);
+      console.log('Successfully sent reminder emails for appointment:', appointment.id);
+    } catch (error) {
+      console.error('Failed to send reminder emails:', error);
+      throw error;
+    }
+  }
 }

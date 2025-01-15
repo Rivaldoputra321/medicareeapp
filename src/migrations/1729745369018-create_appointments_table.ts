@@ -80,10 +80,6 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         isNullable: true
                     },
 
-                    {
-                        name: 'total_price',
-                        type: 'decimal', 
-                    },
                     
                     {
                         name: "reschedule_count",

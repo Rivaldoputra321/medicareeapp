@@ -25,16 +25,19 @@ export class Transaction {
     id: string;
   
     @OneToOne(() => Appointment, appointment => appointment.transaction)
-    @JoinColumn()
+    @JoinColumn({ name: 'appointment_id' })
     appointment: Appointment;
+
+    @Column({ name: 'appointment_id' })
+    appointment_id: string;
   
-    @Column({ type: 'decimal', precision: 10, scale: 2 })
+    @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
     amount: number; 
   
-    @Column()
+    @Column({ name: 'midtrans_order_id', unique: true, nullable: true })
     midtransOrderId: string;
   
-    @Column({ nullable: true })
+    @Column({name: 'midtrans_transaction_id', nullable: true })
     midtransTransactionId: string;
   
     @Column({
@@ -44,19 +47,19 @@ export class Transaction {
     })
     status: PaymentStatus;
   
-    @Column({ nullable: true })
+    @Column({ name: 'payment_method', nullable: true })
     paymentMethod: string;
   
-    @Column({ type: 'decimal', precision: 10, scale: 2 })
+    @Column({ name: 'admin_fee',type: 'decimal', precision: 10, scale: 2 })
     adminFee: number; // 10% dari doctor.price
   
-    @Column({ type: 'decimal', precision: 10, scale: 2 })
+    @Column({ name: 'doctor_fee', type: 'decimal', precision: 10, scale: 2 })
     doctorFee: number; // 90% dari doctor.price (sesuai price_received di doctor entity)
   
-    @Column({ type: 'timestamp', nullable: true })
+    @Column({ name: 'paid_at',type: 'timestamp', nullable: true })
     paidAt: Date;
   
-    @Column({ nullable: true })
+    @Column({ name: 'refund_id',nullable: true })
     refundId: string;
   
     @Column({ type: 'timestamp', nullable: true })

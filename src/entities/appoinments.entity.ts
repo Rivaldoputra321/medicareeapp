@@ -40,10 +40,6 @@ export class Appointment {
   @Column()
   schedule:  Date;
 
-  
-  @Column({ type: 'decimal' }) // Menggunakan tipe numeric
-  total_price: number;
-
   @Column({ nullable: true })
   rejection_reason: string;
 
