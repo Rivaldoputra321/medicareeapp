@@ -36,7 +36,7 @@ export default function Login() {
           router.push('/dashboard/admin/manage-doctors');
           break;
         case 'doctor':
-          router.push('/doctor/dashboard');
+          router.push('/dashboard/doctor');
           break;
         case 'patient':
           router.push('/');

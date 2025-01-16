@@ -1,9 +1,9 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page": "app/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page.js",
-  "/(protected)/dashboard/admin/manage-spesialists/form_edit_spesialist/[id]/page": "app/(protected)/dashboard/admin/manage-spesialists/form_edit_spesialist/[id]/page.js",
-  "/(protected)/dashboard/admin/manage-doctors/page": "app/(protected)/dashboard/admin/manage-doctors/page.js",
-  "/(auth)/signin/page": "app/(auth)/signin/page.js",
-  "/page": "app/page.js",
-  "/search/page": "app/search/page.js"
+  "/(public)/doctors/[spesialistId]/page": "app/(public)/doctors/[spesialistId]/page.js",
+  "/(public)/doctors/doctor/[id]/page": "app/(public)/doctors/doctor/[id]/page.js",
+  "/(public)/payacc/page": "app/(public)/payacc/page.js",
+  "/(protected)/dashboard/doctor/page": "app/(protected)/dashboard/doctor/page.js",
+  "/(public)/payment/[transactionId]/page": "app/(public)/payment/[transactionId]/page.js",
+  "/page": "app/page.js"
 }

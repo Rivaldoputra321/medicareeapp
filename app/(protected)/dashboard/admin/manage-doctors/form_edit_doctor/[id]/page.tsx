@@ -34,7 +34,8 @@ const EditDoctorForm: React.FC<{ id: string; onSuccess: () => void }> = ({ id, o
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [fileList, setFileList] = useState<any[]>([]);
+  const [photoFileList, setPhotoFileList] = useState<any[]>([]);
+  const [fileSTRList, setFileSTRList] = useState<any[]>([]);
 
   useEffect(() => {
     const loadDoctor = async () => {
@@ -50,13 +51,23 @@ const EditDoctorForm: React.FC<{ id: string; onSuccess: () => void }> = ({ id, o
         });
 
         if (doctor.user.photo_profile) {
-          setFileList([{
+          setPhotoFileList([{
             uid: '-1',
             name: 'Current Photo',
             status: 'done',
             url: doctor.user.photo_profile,
           }]);
         }
+
+        if (doctor.file_str) {
+          setFileSTRList([{
+            uid: '-1',
+            name: 'Current STR File',
+            status: 'done',
+            url: doctor.file_str,
+          }]);
+        }
+
       } catch (error) {
         message.error('Failed to load doctor data');
       } finally {
@@ -71,15 +82,19 @@ const EditDoctorForm: React.FC<{ id: string; onSuccess: () => void }> = ({ id, o
     try {
       setLoading(true);
       const formData = new FormData();
-      
+
       Object.keys(values).forEach(key => {
-        if (key !== 'photo_profile') {
+        if (key !== 'photo_profile' && key !== 'file_str') {
           formData.append(key, values[key]);
         }
       });
 
-      if (fileList[0]?.originFileObj) {
-        formData.append('photo', fileList[0].originFileObj);
+      if (photoFileList[0]?.originFileObj) {
+        formData.append('photo', photoFileList[0].originFileObj);
+      }
+
+      if (fileSTRList[0]?.originFileObj) {
+        formData.append('file_str', fileSTRList[0].originFileObj);
       }
 
       await updateDoctor(id, formData);
@@ -172,16 +187,38 @@ const EditDoctorForm: React.FC<{ id: string; onSuccess: () => void }> = ({ id, o
       >
         <Upload
           beforeUpload={() => false}
-          fileList={fileList}
-          onChange={({ fileList }) => setFileList(fileList)}
+          fileList={photoFileList}
+          onChange={({ fileList }) => setPhotoFileList(fileList)}
           maxCount={1}
           accept="image/*"
           listType="picture-card"
         >
-          {fileList.length === 0 && (
+          {photoFileList.length === 0 && (
             <div>
               <UploadOutlined className="text-xl" />
               <div className="mt-2">Upload Photo</div>
+            </div>
+          )}
+        </Upload>
+      </Form.Item>
+
+      <Form.Item
+        label="File STR"
+        name="file_str"
+        className="mt-4"
+      >
+        <Upload
+          beforeUpload={() => false}
+          fileList={fileSTRList}
+          onChange={({ fileList }) => setFileSTRList(fileList)}
+          maxCount={1}
+          accept=".pdf,.doc,.docx"
+          listType="text"
+        >
+          {fileSTRList.length === 0 && (
+            <div>
+              <UploadOutlined className="text-xl" />
+              <div className="mt-2">Upload File STR</div>
             </div>
           )}
         </Upload>

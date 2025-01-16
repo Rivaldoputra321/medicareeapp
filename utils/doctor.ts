@@ -8,6 +8,7 @@ export interface Doctor {
   alumnus: string;
   no_str: string;
   price: number;
+  file_str: string;
   deleted_at: string | null;
   user: {
     name: string;

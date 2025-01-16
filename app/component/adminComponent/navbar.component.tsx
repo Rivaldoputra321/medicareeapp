@@ -17,9 +17,12 @@ const Navbar = () => {
 
   useEffect(() => {
     const savedUser = getCurrentUser();
-    setUser(savedUser);
-  }, []);
-
+    if (savedUser?.user_type === 'admin') {
+      setUser(savedUser);
+    } else {
+      router.push('/unauthorized');
+    }
+  }, [router]);
   const handleLogout = () => {
     logout();
     router.push('/signin');

@@ -7,6 +7,10 @@ import Image from 'next/image';
 import moment from 'moment';
 import { useRouter } from 'next/navigation';
 import { Doctor, fetchDoctorId } from '@/utils/doctor';
+import { createAppointment, CreateAppointmentDto } from '@/utils/appointment';
+import axios, { AxiosError } from 'axios';
+import Navbar from '@/app/component/navbar';
+import Swal from 'sweetalert2';
 
 
 export default function DoctorDetail({ params }: { params: { id: string } }) {
@@ -17,7 +21,7 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
 
   const today = moment();
-  const maxDate = moment().add(30, 'days');
+  const maxDate = moment().add(7, 'days');
 
   useEffect(() => {
     const loadDoctor = async () => {
@@ -38,40 +42,81 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
     if (date) {
       setSelectedDate({
         date: date.format('YYYY-MM-DD'),
-        time: date.format('HH:mm'),
+        time: date.format('HH:mm')
       });
     }
   };
 
-  // const handleBookAppointment = async () => {
-  //   if (!selectedDate) {
-  //     alert('Please select a date and time');
-  //     return;
-  //   }
+  const handleBookAppointment = async () => {
+    if (!selectedDate) {
+      Swal.fire({
+        title: 'Error!',
+        text: 'Please select a date and time',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a'
+      });
+      return;
+    }
 
-  //   try {
-  //     const response = await fetch('/api/appointments', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         doctorId: params.id,
-  //         appointmentDate: selectedDate.date,
-  //         appointmentTime: selectedDate.time,
-  //       }),
-  //     });
+    try {
+      const appointmentData: CreateAppointmentDto = {
+        doctorId: params.id,
+        schedule: moment(`${selectedDate.date} ${selectedDate.time}`).toISOString()
+      };
 
-  //     if (!response.ok) {
-  //       throw new Error('Failed to book appointment');
-  //     }
+      const appointmentResponse = await createAppointment(appointmentData);
+      
+      await Swal.fire({
+        title: 'Success!',
+        text: 'Your appointment has been booked successfully',
+        icon: 'success',
+        confirmButtonText: 'View Appointments',
+        confirmButtonColor: '#16a34a',
+        timer: 3000,
+        timerProgressBar: true
+      });
+      
+      router.push('/riwayat');
+    } catch (error) {
+      const err = error as AxiosError<any>;
+      const statusCode = err.response?.status;
+      
+      switch (statusCode) {
+        case 401:
+          await Swal.fire({
+            title: 'Session Expired',
+            text: 'Please sign in to continue',
+            icon: 'warning',
+            confirmButtonText: 'Sign In',
+            confirmButtonColor: '#16a34a'
+          });
+          router.push('/signin');
+          break;
+        
+        case 409:
+          Swal.fire({
+            title: 'Appointment Exists',
+            text: 'You already have an appointment scheduled for this time',
+            icon: 'warning',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#16a34a'
+          });
+          break;
 
-  //     alert('Appointment booked successfully!');
-  //     router.push('/appointments');
-  //   } catch (err) {
-  //     alert('Failed to book appointment. Please try again.');
-  //   }
-  // };
+        default:
+          Swal.fire({
+            title: 'Booking Failed',
+            text: err.response?.data?.message || 'Failed to book appointment',
+            icon: 'error',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#16a34a'
+          });
+      }
+    }
+  };
+  
+  
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>;
@@ -79,35 +124,11 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Head>
-        <title>MediCare - Book Appointment with {doctor.user.name}</title>
-        <meta name="description" content={`Book your medical appointment with ${doctor.user.name}`} />
-      </Head>
-
       {/* Navigation */}
-      <nav className="bg-white shadow fixed w-full z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-green-600 text-2xl font-bold">Medi</span>
-                <span className="text-gray-900 text-2xl font-bold">Care</span>
-              </div>
-              <div className="ml-6 flex space-x-8">
-                <a href="/" className="text-gray-700 hover:text-green-600 px-3 py-2 font-medium">Beranda</a>
-                <a href="/appointments" className="text-gray-700 hover:text-green-600 px-3 py-2 font-medium">Riwayat</a>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition duration-150">
-                Login
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Content */}
+      <br />
       <main className="pt-16">
         {/* Header Section */}
         <div className="bg-white shadow">
@@ -169,26 +190,26 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <div className="flex-1">
                 <div className="relative">
-                  <DatePicker 
-                    className="w-full border border-gray-300 rounded-lg shadow-sm p-2"
-                    placeholder="Pilih tanggal dan waktu"
-                    format="DD MMMM YYYY HH:mm"
-                    showTime={{
-                      format: 'HH:mm',
-                      minuteStep: 30,
-                      hideDisabledOptions: true,
-                      disabledHours: () => [
-                        ...Array.from({ length: 8 }, (_, i) => i),
-                        ...Array.from({ length: 8 }, (_, i) => i + 16)
-                      ]
-                    }}
-                    disabledDate={(current) => {
-                      const isOutOfRange = current < moment().startOf('day') || current > maxDate;
-                      const isWeekend = current.day() === 0 || current.day() === 6;
-                      return isOutOfRange || isWeekend;
-                    }}
-                    onChange={handleDateChange}
-                  />
+                <DatePicker 
+                  className="w-full border border-gray-300 rounded-lg shadow-sm p-2"
+                  placeholder="Pilih tanggal dan waktu"
+                  format="DD MMMM YYYY HH:mm"
+                  showTime={{
+                    format: 'HH:mm',
+                    minuteStep: 1,
+                    hideDisabledOptions: true,
+                    disabledHours: () => [
+                      ...Array.from({ length: 8 }, (_, i) => i),
+                      ...Array.from({ length: 8 }, (_, i) => i + 24)
+                    ]
+                  }}
+                  disabledDate={(current) => {
+                    const isOutOfRange = current < moment().startOf('day') || current > maxDate;
+                    const isWeekend = current.day() === 0 || current.day() === 6;
+                    return isOutOfRange || isWeekend;
+                  }}
+                  onChange={handleDateChange}
+                />
                 </div>
               </div>
               <div className="flex-1">
@@ -196,9 +217,9 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Informasi Jadwal:</h4>
                   <div className="space-y-2">
                     <p className="text-sm text-gray-600">• Jadwal praktik Senin - Jumat</p>
-                    <p className="text-sm text-gray-600">• Jam praktik: 08:00 - 16:00</p>
+                    <p className="text-sm text-gray-600">• ,Jam praktik: 08:00 - 17:00</p>
                     <p className="text-sm text-gray-600">• Sabtu & Minggu: Tutup</p>
-                    <p className="text-sm text-gray-600">• Pemilihan jadwal maksimal 30 hari ke depan</p>
+                    <p className="text-sm text-gray-600">• Pemilihan jadwal maksimal 7 hari ke depan</p>
                   </div>
                 </div>
               </div>
@@ -207,12 +228,12 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
 
           {/* Book Appointment Button */}
           <div className="mt-8 flex justify-end">
-            <button 
-              // onClick={handleBookAppointment}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg text-lg font-medium transition duration-150"
-            >
-              Buat Janji
-            </button>
+          <button 
+  onClick={handleBookAppointment}
+  className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg text-lg font-medium transition duration-150"
+>
+  Buat Janji
+</button>
           </div>
         </div>
       </main>

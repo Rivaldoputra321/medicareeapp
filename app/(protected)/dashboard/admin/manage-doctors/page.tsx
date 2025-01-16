@@ -263,6 +263,26 @@ const AdminDoctorPage = () => {
       render: (price: number) => `Rp ${price.toLocaleString()}`
     },
     { 
+      title: "File STR", 
+      key: "file_str",
+      render: (text: string, record: Doctor) => (
+        <div className="flex items-center space-x-3">
+          {record.file_str ? (
+            <a 
+              href={record.file_str} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-emerald-600 hover:text-emerald-800"
+            >
+              Preview STR
+            </a>
+          ) : (
+            <span className="text-gray-500 italic">No file</span>
+          )}
+        </div>
+      )
+    },    
+    { 
       title: "Status", 
       dataIndex: "status", 
       key: "status",

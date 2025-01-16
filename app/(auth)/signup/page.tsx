@@ -4,6 +4,7 @@ import { FaRegEnvelope } from 'react-icons/fa';
 import { MdLockOutline } from 'react-icons/md';
 import { useState } from 'react';
 import { useRouter } from "next/navigation";
+import Swal from 'sweetalert2';
 
 export default function Home() {
   // State untuk menangani input form
@@ -13,12 +14,15 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const router = useRouter();
 
   const handleRegister = async () => {
     if (password !== confirmPassword) {
-      alert('Password dan konfirmasi password tidak sama.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Password dan konfirmasi password tidak sama.',
+      });
       return;
     }
 
@@ -28,7 +32,6 @@ export default function Home() {
       password,
       date_of_birth: dateOfBirth,
       gender,
-      telp: phoneNumber
     };
 
     try {
@@ -41,13 +44,26 @@ export default function Home() {
       });
 
       if (response.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: 'Pendaftaran berhasil. Silahkan login.',
+        });
         router.push('/signin');
-        
       } else {
-        alert('Gagal mendaftar');
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Gagal mendaftar. Silahkan coba lagi.',
+        });
       }
     } catch (error) {
       console.error('Error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Terjadi kesalahan. Silahkan coba lagi.',
+      });
     }
   };
 
@@ -124,6 +140,7 @@ export default function Home() {
                     type="date"
                     name="date_of_birth"
                     value={dateOfBirth}
+                    max={new Date().toISOString().split('T')[0]} // Membatasi tanggal maksimum hingga hari ini
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     className="bg-gray-100 outline-none text-sm flex-1"
                   />
@@ -151,19 +168,6 @@ export default function Home() {
                     Female
                   </label>
                 </div>
-
-                {/* Phone Number */}
-                <div className="bg-gray-100 w-64 p-2 flex items-center mb-3">
-                  <input
-                    type="text"
-                    name="phone_number"
-                    placeholder="Phone Number"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="bg-gray-100 outline-none text-sm flex-1"
-                  />
-                </div>
-
                 <button
                   onClick={handleRegister}
                   className="border-2 border-green-500 text-green-500 rounded-full px-12 py-2 mt-3 inline-block font-semibold hover:bg-green-500 hover:text-white"
@@ -184,7 +188,7 @@ export default function Home() {
               Konsultasi, Buat janji, dan kunjungi rumah sakit sekarang tersedia di MediCare!
             </p>
             <a
-              href="#"
+              href="/signin"
               className="border-2 border-white rounded-full px-12 py-2 inline-block font-semibold hover:bg-white hover:text-green-500"
             >
               Sign in

@@ -30,9 +30,9 @@ export interface LoginResponse {
 }
 
 export const roleMap: Record<string, string> = {
-  'e9684fda-b6b3-438e-a26c-e83d0e880333': 'patient',
-  '735df18b-b754-4dd5-860b-11ac673cf397': 'doctor',
-  'a34032e0-d324-4ac4-880c-02e67c1742c0': 'admin',
+  '77bf765d-4a63-4b15-b415-ebc32fd673d3': 'patient',
+  '776ad594-ee63-4172-bd86-46372e9cabbd': 'doctor',
+  '54a03d4d-719c-4ea8-8235-a2ff1aeedae0': 'admin',
 };
 
 export async function login(email: string, password: string): Promise<LoginResponse> {

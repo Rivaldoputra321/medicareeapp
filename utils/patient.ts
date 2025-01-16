@@ -8,6 +8,7 @@ export interface Patient {
   telp: string;
   deleted_at: string | null;
   user: {
+    id: string;
     name: string;
     email: string;
     photo_profile: string | null;
@@ -63,6 +64,38 @@ export const fetchPatients = async (
   }
 };
 
+export const fetchPatientId = async (id: string): Promise<Patient> => {
+  try {
+    const response = await api.get<Patient>(`/patient/by/${id}`);
+    if (!response.data) {
+      throw new Error('Patient data not found');
+    }
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const errorMessage = error.response?.data?.message || 'Failed to fetch patient details';
+      console.error('Error fetching patient:', errorMessage);
+      throw new Error(errorMessage);
+    }
+    throw new Error('Failed to fetch patient details');
+  }
+};
+
+export const updatePatientProfile = async (id: string, formData: FormData): Promise<Patient> => {
+  try {
+    const response = await api.patch(`/patient/profile/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to update patient profile');
+    }
+    throw new Error('An unexpected error occurred while updating patient profile');
+  }
+};
 
 export const fetchDeletedPatients = async (
   page: number = 1,

@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page.js"
+      "static/chunks/app/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -11,65 +11,35 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(protected)/dashboard/admin/manage-spesialists/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-spesialists/page.js"
-    ],
-    "/(protected)/dashboard/admin/manage-patients/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-patients/page.js"
-    ],
-    "/(protected)/dashboard/admin/manage-doctors/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-doctors/page.js"
-    ],
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
     "/(public)/doctors/[spesialistId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(public)/doctors/[spesialistId]/page.js"
-    ],
-    "/search/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/search/page.js"
-    ],
-    "/(protected)/dashboard/admin/manage-spesialists/form_edit_spesialist/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-spesialists/form_edit_spesialist/[id]/page.js"
     ],
     "/(auth)/signin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/signin/page.js"
     ],
-    "/(auth)/signup/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/signup/page.js"
-    ],
     "/(public)/doctors/doctor/[id]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(public)/doctors/doctor/[id]/page.js"
     ],
-    "/(protected)/dashboard/admin/manage-doctors/form_create_doctor/page": [
+    "/(public)/payacc/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-doctors/form_create_doctor/page.js"
+      "static/chunks/app/(public)/payacc/page.js"
     ],
-    "/(protected)/dashboard/admin/manage-doctors/form_edit_doctor/[id]/page": [
+    "/(protected)/dashboard/doctor/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(protected)/dashboard/admin/manage-doctors/form_edit_doctor/[id]/page.js"
+      "static/chunks/app/(protected)/dashboard/doctor/page.js"
+    ],
+    "/(public)/payment/[transactionId]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(public)/payment/[transactionId]/page.js"
     ],
     "/_not-found/page": [
       "static/chunks/webpack.js",
