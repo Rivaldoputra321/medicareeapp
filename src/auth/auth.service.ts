@@ -4,6 +4,7 @@ import { User } from 'src/entities/users.entity';
 import { UsersService } from 'src/users/users.service';
 import * as bcrypt from 'bcrypt';
 import { AuthDto } from './dto/auth.dto';
+import { peran } from 'src/entities/roles.entity';
 
 const EXPIRE_TIME = 20 * 1000;
 
@@ -56,20 +57,23 @@ export class AuthService {
         roleId: user.roleId, 
         name: user.name,
         // Tambahkan full URL untuk photo_profile jika ada
-        photo_profile: user.photo_profile 
-          ? `${baseUrl}/uploads/${user.photo_profile}`
-          : null
+        photo_profile: user.roleId === peran.DOCTOR 
+          ? `${baseUrl}/uploads/doctors${user.photo_profile}` 
+          : `${baseUrl}/uploads/patient${user.photo_profile}`,
       };
-    
+      
       // Membuat token JWT dengan masa berlaku 1 jam
       const accessToken = this.jwtService.sign(payload, {
         secret: process.env.jwtSecretKey, 
         expiresIn: '1h',
       });
+      
+      // Membuat refresh token dengan masa berlaku 7 hari
       const refreshToken = this.jwtService.sign(payload, {
         secret: process.env.jwtRefreshTokenKey, 
         expiresIn: '7d',
       });
+      
 
       return {
         access_token: accessToken,

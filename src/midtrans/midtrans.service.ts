@@ -8,7 +8,6 @@ export class MidtransService {
   private readonly snap: midtransClient.Snap;
   private readonly core: midtransClient.CoreApi;
   private readonly logger = new Logger(MidtransService.name);
-  private readonly serverKey: string;
 
   constructor(private configService: ConfigService) {
     const serverKey = this.configService.get<string>('MIDTRANS_SERVER_KEY');
@@ -33,26 +32,26 @@ export class MidtransService {
     });
 
     // Simple auth test
-    this.testAuth();
+    // this.testAuth();
   }
 
-  private async testAuth() {
-    try {
-      const testTransaction = {
-        transaction_details: {
-          order_id: `test-${Date.now()}`,
-          gross_amount: 10000
-        }
-      };
+  // private async testAuth() {
+  //   try {
+  //     const testTransaction = {
+  //       transaction_details: {
+  //         order_id: `test-${Date.now()}`,
+  //         gross_amount: 10000
+  //       }
+  //     };
       
-      const result = await this.snap.createTransaction(testTransaction);
-      this.logger.log('Midtrans auth successful');
-      return result;
-    } catch (error) {
-      this.logger.error('Midtrans auth failed:', error.message);
-      throw error;
-    }
-  }
+  //     const result = await this.snap.createTransaction(testTransaction);
+  //     this.logger.log('Midtrans auth successful');
+  //     return result;
+  //   } catch (error) {
+  //     this.logger.error('Midtrans auth failed:', error.message);
+  //     throw error;
+  //   }
+  // }
 
   async createPaymentLink(transaction: Transaction): Promise<string> {
     try {

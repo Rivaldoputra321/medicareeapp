@@ -73,6 +73,16 @@ export class EmailService implements OnModuleInit {
     );
   }
 
+
+  async sendAppointmentRscheduleToDoctor(appointment: Appointment) {
+    const html = this.emailTemplateService.getAppointmentRescheduleTemplate(appointment);
+    return await this.sendMail(
+      appointment.doctor.user.email,
+      'New Appointment Request',
+      html,
+    );
+  }
+
   async sendPaymentLink(appointment: Appointment, paymentLink: string) {
     const html = this.emailTemplateService.getPaymentLinkTemplate(appointment, paymentLink);
     return await this.sendMail(
@@ -128,4 +138,48 @@ export class EmailService implements OnModuleInit {
       throw error;
     }
   }
+
+  
+async sendAppointmentCancellation(appointment: Appointment, reason: string) {
+  const html = this.emailTemplateService.getAppointmentCancellationTemplate(appointment, reason);
+  return await this.sendMail(
+    appointment.patient.user.email,
+    'Appointment Cancelled',
+    html
+  );
+}
+
+async sendMeetingLinkReminder(appointment: Appointment) {
+  const html = this.emailTemplateService.getMeetingLinkReminderTemplate(appointment);
+  return await this.sendMail(
+    appointment.doctor.user.email,
+    'Urgent: Meeting Link Required for Upcoming Appointment',
+    html
+  );
+}
+
+async sendAppointmentCompletionNotification(appointment: Appointment) {
+  const html = this.emailTemplateService.getAppointmentCompletionTemplate(appointment);
+  
+  try {
+    // Send to both doctor and patient
+    await Promise.all([
+      this.sendMail(
+        appointment.doctor.user.email,
+        'Consultation Session Completed',
+        html
+      ),
+      this.sendMail(
+        appointment.patient.user.email,
+        'Consultation Session Completed',
+        html
+      )
+    ]);
+    
+    console.log('Successfully sent completion notifications for appointment:', appointment.id);
+  } catch (error) {
+    console.error('Failed to send completion notifications:', error);
+    throw error;
+  }
+}
 }

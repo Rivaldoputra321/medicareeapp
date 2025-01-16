@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException, Query } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { AppointmentService } from './appointment.service';
 import { JwtGuard } from 'src/auth/guard/authenticated.guard';
@@ -40,30 +40,48 @@ export class AppointmentController {
     @Body() updateStatusDto: UpdateAppointmentStatusDto,
   ) {
     try {
-      // Log input parameters
-
       const result = await this.appointmentService.updateAppointmentStatus(
         req.user.id,
         id,
         updateStatusDto,
       );
 
-      // Log success
       this.logger.log(`Successfully updated appointment status for ID: ${id}`);
       return result;
-
     } catch (error) {
-      // Log error details
       this.logger.error(`Error updating appointment status for ID: ${id}`);
       this.logger.error('Error details:', error);
       this.logger.error('Stack trace:', error.stack);
-
-      // Re-throw the error to be handled by global exception filter
       throw error;
     }
   }
 
-  @Put(':id/meeting-link')
+  @Put('reschedule/:id')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(peran.PATIENT)
+  async rescheduleAppointment(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() updateDto: UpdateAppointmentStatusDto,
+  ) {
+    try {
+      const result = await this.appointmentService.rescheduleAppointment(
+        req.user.id,
+        id,
+        updateDto,
+      );
+
+      this.logger.log(`Successfully rescheduled appointment ID: ${id}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error rescheduling appointment ID: ${id}`);
+      this.logger.error('Error details:', error);
+      this.logger.error('Stack trace:', error.stack);
+      throw error;
+    }
+  }
+
+  @Put('meeting-link/:id')
   @UseGuards(JwtGuard, RoleGuard)
   @Roles(peran.DOCTOR)
   async setMeetingLink(
@@ -78,7 +96,7 @@ export class AppointmentController {
     );
   }
 
-  @Post(':id/presence')
+  @Post('presence/:id')
   @UseGuards(JwtGuard, RoleGuard)
   @Roles(peran.DOCTOR, peran.PATIENT)
   async recordPresence(
@@ -166,30 +184,38 @@ export class AppointmentController {
   }
 
   @Get('list/:statusGroup')
-  @UseGuards(JwtGuard)
-  async getAppointmentsByStatus(
-    @Param('statusGroup') statusGroup: string,
-    @Request() req,
-    userType: peran.DOCTOR | peran.PATIENT
-  ) {
-    // Get user ID from JWT token
-    const userId = req.user?.sub;
-    if (!userId) {
-      throw new UnauthorizedException('Invalid user token');
-    }
-  
-    // Validate status group
-    const validStatusGroups = ['waiting', 'failed', 'completed'];
-    if (!validStatusGroups.includes(statusGroup)) {
-      throw new BadRequestException('Invalid status group');
-    }
-  
-    return await this.appointmentService.getAppointmentsByStatus(
-      userId,
-      userType,
-      statusGroup as 'waiting' | 'failed' | 'completed'
-    );
+@UseGuards(JwtGuard)
+async getAppointmentsByStatus(
+  @Param('statusGroup') statusGroup: string,
+  @Query('page') page: number = 1, // Pagination: Default halaman pertama
+  @Query('limit') limit: number = 10, // Pagination: Default jumlah item per halaman
+  @Request() req
+) {
+  // Get user ID dari JWT token
+  const userId = req.user?.sub;
+  if (!userId) {
+    throw new UnauthorizedException('Invalid user token');
   }
+
+  // Validate status group
+  const validStatusGroups = ['waiting', 'failed', 'completed'];
+  if (!validStatusGroups.includes(statusGroup)) {
+    throw new BadRequestException('Invalid status group');
+  }
+
+  // Tentukan tipe user berdasarkan peran
+  const userType = req.user?.role as peran.DOCTOR | peran.PATIENT;
+
+  // Panggil service untuk mendapatkan data janji temu
+  return await this.appointmentService.getAppointmentsByStatus(
+    userId,
+    userType,
+    statusGroup as 'waiting' | 'failed' | 'completed',
+    page,
+    limit
+  );
+}
+
   
 
 }

@@ -103,10 +103,11 @@ async create(
         cb(null, folder);
       },
       filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        const filename = `${file.originalname.split('.')[0]}-${uniqueSuffix}${ext}`;
-        cb(null, filename);
+        const name = file.originalname.split('.')[0];
+        const fileExtension = file.originalname.split('.')[1];
+        const newFileName = name.split(' ').join('-') + '-' + Date.now() + '.' + fileExtension;
+        cb(null, newFileName);
+        
       }
     }),
     fileFilter: (req, file, cb) => {

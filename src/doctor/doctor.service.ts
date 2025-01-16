@@ -268,6 +268,13 @@ async updateProfile(doctorId: string, updateDoctorDto: UpdateDoctorDto, file?: E
         }
       }
 
+      if (doctor.file_str) {
+        doctor.file_str = `${baseUrl}/uploads/doctors/files/${doctor.file_str}`;
+        if(!baseUrl){
+          throw new Error('Base URL is not defined');
+        }
+      }
+
       return doctor;
     });
     queryBuilder.skip((page - 1) * limit).take(limit);

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,6 +6,8 @@ import { Patient } from 'src/entities/patients.entity';
 import { Role } from 'src/entities/roles.entity';
 import { User } from 'src/entities/users.entity';
 import { Repository, Brackets } from 'typeorm';
+import { join } from 'path';
+import * as fs from 'fs';
 
 @Injectable()
 export class PatientService {
@@ -29,7 +31,7 @@ export class PatientService {
         .leftJoin('patients.user', 'user')
         .addSelect(['user.id', 'user.name', 'user.photo_profile', 'user.email', 'user.status']);
     
-      // Apply search by spesialist name or doctor name
+      // Apply search by spesialist name or patient name
       if (search) {
         queryBuilder.andWhere(
           new Brackets((qb) => {
@@ -68,24 +70,79 @@ export class PatientService {
       };
     }
 
+    async updatePatientProfile(patientId: string, updatepatientDto: UpdatePatientDto, file?: Express.Multer.File): Promise<Patient> {
+      const patient = await this.patientRepository.findOne({
+        where: { id: patientId },
+        relations: ['user'],
+      });
+    
+      if (!patient) {
+        throw new NotFoundException('patient not found');
+      }
+    
+      if (file) {
+        const oldPhotoPath = join(__dirname, '..', '..', 'uploads', 'patient', patient.user.photo_profile);
+        if (patient.user.photo_profile && fs.existsSync(oldPhotoPath)) {
+          fs.unlinkSync(oldPhotoPath);
+        }
+        patient.user.photo_profile = file.filename;
+      }
+    
+      if (updatepatientDto.name) {
+        patient.user.name = updatepatientDto.name;
+      }
+
+      if (updatepatientDto.date_of_birth) {
+        patient.date_of_birth = updatepatientDto.date_of_birth;
+      }
+
+      if (updatepatientDto.gender) {
+        patient.gender = updatepatientDto.gender;
+      }
+      
+    
+      await this.userRepository.save(patient.user);
+      return this.patientRepository.save(patient);
+    }
+
+    async getpatientById(id: string) { 
+      const patient = await this.patientRepository.createQueryBuilder('patient')
+        .leftJoin('patient.user', 'user')
+        .addSelect(['user.id', 'user.name', 'user.photo_profile',])
+        .where('patient.id = :id', { id })
+        .getOne();
+    
+      if (!patient) {
+        throw new NotFoundException('patient not found');
+      }
+      if (patient.user.photo_profile) {
+        const baseUrl =  'http://localhost:8000';
+        patient.user.photo_profile = `${baseUrl}/uploads/patient/${patient.user.photo_profile}`;
+      }
+  
+  
+    
+      return patient;
+    }
+
     async delete(id: string): Promise<void> {
         const patient = await this.patientRepository.findOne({ where: { id: id } });
         if (!patient) {
-          throw new NotFoundException('Doctor not found');
+          throw new NotFoundException('patient not found');
         }
     
         await this.patientRepository.softDelete(id);
       }
     
     
-    //restore doctor
+    //restore patient
       async restore(id: string): Promise<void> {
         const deletedPatients = await this.patientRepository.findOne({
           where: { id: id },
           withDeleted: true,
         });
         if (!deletedPatients) {
-          throw new NotFoundException('Doctor not found or not deleted');
+          throw new NotFoundException('patient not found or not deleted');
         }
     
         await this.patientRepository.restore(id);

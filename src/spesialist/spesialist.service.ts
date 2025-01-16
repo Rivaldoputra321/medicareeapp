@@ -133,6 +133,13 @@ export class SpesialistService {
         }
       }
 
+      if (doctor.file_str) {
+        doctor.file_str = `${baseUrl}/uploads/doctors/files/${doctor.file_str}`;
+        if(!baseUrl){
+          throw new Error('Base URL is not defined');
+        }
+      }
+
       return doctor;
     });
   

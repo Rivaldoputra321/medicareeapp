@@ -13,6 +13,28 @@ export class EmailTemplateService {
     }).format(amount);
   }
 
+  getAppointmentRescheduleTemplate(appointment: Appointment): string {
+    const frontendUrl = 'http://localhost:3000';
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>New Appointment Request</h2>
+        <p>Dear Dr. ${appointment.doctor.user.name},</p>
+        <p>You have reschedule appointment request with the following details:</p>
+        <ul>
+          <li>Patient: ${appointment.patient.user.name}</li>
+          <li>Date: ${new Date(appointment.schedule).toLocaleDateString()}</li>
+          <li>Time: ${new Date(appointment.schedule).toLocaleTimeString()}</li>
+          <li>Consultation Fee: ${appointment.doctor.price}</li>
+        </ul>
+        <p>Please login to your dashboard to respond to this request:</p>
+        <a href="${frontendUrl}/dashboard/doctor" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          View Appointment
+        </a>
+      </div>
+    `;
+  }
+
+
   getAppointmentRequestTemplate(appointment: Appointment): string {
     const frontendUrl = 'http://localhost:3000';
     return `
@@ -27,7 +49,7 @@ export class EmailTemplateService {
           <li>Consultation Fee: ${appointment.doctor.price}</li>
         </ul>
         <p>Please login to your dashboard to respond to this request:</p>
-        <a href="${frontendUrl}/doctor/appointments" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+        <a href="${frontendUrl}/dashboard/doctor" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
           View Appointment
         </a>
       </div>
@@ -72,6 +94,54 @@ export class EmailTemplateService {
       </div>
     `;
   }
+
+  // Add these methods to your EmailTemplateService class
+
+// Add these new methods to your EmailTemplateService class
+
+getAppointmentCancellationTemplate(appointment: Appointment, reason: string): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Appointment Cancelled</h2>
+      <p>Dear ${appointment.patient.user.name},</p>
+      <p>${reason}</p>
+      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <p>Appointment Details:</p>
+        <ul>
+          <li>Doctor: Dr. ${appointment.doctor.user.name}</li>
+          <li>Date: ${new Date(appointment.schedule).toLocaleDateString()}</li>
+          <li>Time: ${new Date(appointment.schedule).toLocaleTimeString()}</li>
+        </ul>
+      </div>
+      <p>You can schedule a new appointment through our platform.</p>
+      <p>We apologize for any inconvenience.</p>
+    </div>
+  `;
+}
+
+getMeetingLinkReminderTemplate(appointment: Appointment): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Urgent: Meeting Link Required</h2>
+      <p>Dear Dr. ${appointment.doctor.user.name},</p>
+      <p>This is a reminder that you need to provide a meeting link for your upcoming appointment:</p>
+      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+        <p>Appointment Details:</p>
+        <ul>
+          <li>Patient: ${appointment.patient.user.name}</li>
+          <li>Date: ${new Date(appointment.schedule).toLocaleDateString()}</li>
+          <li>Time: ${new Date(appointment.schedule).toLocaleTimeString()}</li>
+        </ul>
+      </div>
+      <p style="color: #ff0000;"><strong>Important Notice:</strong> If no meeting link is provided by the scheduled appointment time, the appointment will be automatically cancelled and the patient will be refunded.</p>
+      <p>Please log in to your dashboard to provide the meeting link as soon as possible:</p>
+      <a href="http://localhost:3000/doctor/appointments" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">
+        Provide Meeting Link
+      </a>
+    </div>
+  `;
+}
+
 
   getMeetingLinkTemplate(appointment: Appointment): string {
     return `
@@ -137,6 +207,32 @@ export class EmailTemplateService {
           Please join 5 minutes before the scheduled time to ensure a smooth start.
           If you're unable to attend, please notify us as soon as possible.
         </p>
+      </div>
+    `;
+  }
+
+  getAppointmentCompletionTemplate(appointment: Appointment): string {
+    const meetingDuration = appointment.completed_at && appointment.started_at
+      ? Math.floor((new Date(appointment.completed_at).getTime() - new Date(appointment.started_at).getTime()) / (1000 * 60))
+      : 0;
+  
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Consultation Completed</h2>
+        <p>Dear ${appointment.patient.user.name},</p>
+        <p>Your consultation session has been completed successfully.</p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+          <p>Session Details:</p>
+          <ul>
+            <li>Doctor: Dr. ${appointment.doctor.user.name}</li>
+            <li>Date: ${new Date(appointment.schedule).toLocaleDateString()}</li>
+            <li>Time: ${new Date(appointment.schedule).toLocaleTimeString()}</li>
+            <li>Duration: ${meetingDuration} minutes</li>
+          </ul>
+        </div>
+        <p>Thank you for using our service. If you have any feedback about your consultation, 
+           please don't hesitate to let us know.</p>
+        <p>Stay healthy!</p>
       </div>
     `;
   }

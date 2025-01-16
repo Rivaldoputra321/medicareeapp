@@ -55,7 +55,8 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                             'PAID',
                             'IN_PROGRESS',
                             'COMPLETED',
-                            'CANCELLED'
+                            'CANCELLED',
+                            'AWAITING_JOIN_LINK'
                         ],
                         default: "'PENDING'::appointment_status_enum"
                     },
@@ -95,6 +96,22 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         name: "is_doctor_present",
                         type: "boolean",
                         default: false
+                    },
+                    {
+                        name: 'patient_joint_time',
+                        type: 'timestamp',
+                        default: 'CURRENT_TIMESTAMP',
+                    },
+                    {
+                        name: 'doctor_join_time',
+                        type: 'timestamp',
+                        default: 'CURRENT_TIMESTAMP',
+                    },
+
+                    {
+                        name: 'completed_at',
+                        type: 'timestamp',
+                        default: 'CURRENT_TIMESTAMP',
                     },
                     {
                         name: 'created_at',

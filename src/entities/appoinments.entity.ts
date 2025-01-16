@@ -11,6 +11,7 @@ export enum AppointmentStatus {
   REJECTED = 'REJECTED',
   RESCHEDULED = 'RESCHEDULED',
   AWAITING_PAYMENT = 'AWAITING_PAYMENT',
+  AWAITING_JOIN_LINK = 'AWAITING_JOIN_LINK',
   PAID = 'PAID',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
@@ -51,7 +52,6 @@ export class Appointment {
 
   @Column({ type: 'timestamp', nullable: true })
   link_sent_at: Date;
-  
 
   @Column({ default: 0 })
   reschedule_count: number;
@@ -61,6 +61,19 @@ export class Appointment {
 
   @Column({ default: false })
   is_doctor_present: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  started_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  doctor_join_time: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  patient_join_time: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  completed_at: Date;
+
 
   @OneToOne(() => Transaction, (transaction) => transaction.appointment)
   transaction: Transaction;
