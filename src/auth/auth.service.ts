@@ -58,8 +58,8 @@ export class AuthService {
         name: user.name,
         // Tambahkan full URL untuk photo_profile jika ada
         photo_profile: user.roleId === peran.DOCTOR 
-          ? `${baseUrl}/uploads/doctors${user.photo_profile}` 
-          : `${baseUrl}/uploads/patient${user.photo_profile}`,
+          ? `${baseUrl}/uploads/doctors/${user.photo_profile}` 
+          : `${baseUrl}/uploads/patient/${user.photo_profile}`,
       };
       
       // Membuat token JWT dengan masa berlaku 1 jam
@@ -99,11 +99,17 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
   
-      const payload = {
-        sub: user.id,
-        email: user.email,
+      const baseUrl = 'http://localhost:8000';
+
+      const payload = { 
+        sub: user.id, 
+        email: user.email, 
+        roleId: user.roleId, 
         name: user.name,
-        roleId: user.roleId,
+        // Tambahkan full URL untuk photo_profile jika ada
+        photo_profile: user.roleId === peran.DOCTOR 
+          ? `${baseUrl}/uploads/doctors/${user.photo_profile}` 
+          : `${baseUrl}/uploads/patient/${user.photo_profile}`,
       };
   
       // Generate tokens baru

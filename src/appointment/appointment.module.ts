@@ -10,12 +10,16 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from 'src/entities/roles.entity';
 import { Doctor } from 'src/entities/doctors.entity';
 import { Patient } from 'src/entities/patients.entity';
+import { User } from 'src/entities/users.entity';
+import { UsersService } from 'src/users/users.service';
+import { UsersModule } from 'src/users/users.module';
 
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Appointment, Transaction, Role, Doctor, Patient]),
     EmailModule,
+    UsersModule,
     MidtransModule,
   ],
   controllers: [AppointmentController],

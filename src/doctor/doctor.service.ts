@@ -308,4 +308,25 @@ async updateProfile(doctorId: string, updateDoctorDto: UpdateDoctorDto, file?: E
   
     return doctor;
   }
+
+
+  async getDoctorByUserId(userId: string) {
+    const doctor = await this.doctorRepository.createQueryBuilder('doctors')
+      .leftJoinAndSelect('doctors.spesialist', 'spesialist')
+      .leftJoin('doctors.user', 'user')
+      .addSelect(['user.id', 'user.name', 'user.email', 'user.photo_profile', 'user.status'])
+      .where('user.id = :userId', { userId })
+      .getOne();
+  
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found for this user');
+    }
+
+    if (doctor.user.photo_profile) {
+      const baseUrl = 'http://localhost:8000';
+      doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${doctor.user.photo_profile}`;
+    }
+  
+    return doctor;
+  }
 }

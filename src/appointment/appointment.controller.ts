@@ -1,12 +1,13 @@
-import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException, Query } from '@nestjs/common';
+import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException, Query, Patch, HttpException, HttpStatus } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { AppointmentService } from './appointment.service';
 import { JwtGuard } from 'src/auth/guard/authenticated.guard';
 import { RoleGuard, Roles } from 'src/auth/guard/role.guard';
 import { peran } from 'src/entities/roles.entity';
-import { SetMeetingLinkDto, UpdateAppointmentStatusDto } from './dto/update-appointment.dto';
+import { completeDto, RescheduleDto, SetMeetingLinkDto, UpdateAppointmentStatusDto } from './dto/update-appointment.dto';
 import { PaymentStatus } from 'src/entities/transactions.entity';
 import { User } from 'src/entities/users.entity';
+import { AppointmentStatus } from 'src/entities/appoinments.entity';
 
 
 @Controller('appointments')
@@ -62,13 +63,13 @@ export class AppointmentController {
   async rescheduleAppointment(
     @Request() req,
     @Param('id') id: string,
-    @Body() updateDto: UpdateAppointmentStatusDto,
+    @Body() rescheduleDto: RescheduleDto,
   ) {
     try {
       const result = await this.appointmentService.rescheduleAppointment(
         req.user.id,
         id,
-        updateDto,
+        rescheduleDto,
       );
 
       this.logger.log(`Successfully rescheduled appointment ID: ${id}`);
@@ -100,14 +101,90 @@ export class AppointmentController {
   @UseGuards(JwtGuard, RoleGuard)
   @Roles(peran.DOCTOR, peran.PATIENT)
   async recordPresence(
-    @Request() req,
-    @Param('id') id: string,
+    @Param('id') appointmentId: string,
+    @Request() req
   ) {
-    return this.appointmentService.recordPresence(
-      id,
-      req.user.id,
-      req.user.role,
-    );
+    console.log('Request object:', {
+      user: req.user,
+      appointmentId,
+      headers: req.headers
+    });
+  
+    const userId = req.user?.sub;
+    const roleId = req.user?.roleId;
+  
+    // Map roleId to peran type
+    let userRole: peran.PATIENT | peran.DOCTOR;
+    
+    // These should match your database role IDs
+    const ROLE_MAPPINGS = {
+      // Add your actual role IDs here
+      '0adae9e2-92e1-4317-a531-6d5a4ea8a244': peran.PATIENT,  // Patient role ID
+      '6c100448-ec63-4577-a94f-9a22cc42abc3': peran.DOCTOR     // Replace with actual doctor role ID
+    };
+  
+    const mappedRole = ROLE_MAPPINGS[roleId];
+    if (mappedRole !== peran.PATIENT && mappedRole !== peran.DOCTOR) {
+      throw new HttpException('Invalid role type', HttpStatus.BAD_REQUEST);
+    }
+    userRole = mappedRole;
+  
+    console.log('Role mapping:', {
+      roleId,
+      mappedRole: userRole
+    });
+  
+    if (!userId || !userRole) {
+      console.error('Validation failed:', {
+        hasUserId: !!userId,
+        hasRole: !!userRole,
+        userId,
+        roleId,
+        userRole
+      });
+      
+      throw new HttpException(
+        `Invalid user information. UserId: ${!!userId}, Role: ${!!userRole}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  
+    try {
+      const result = await this.appointmentService.recordPresence(
+        appointmentId,
+        userId,
+        userRole
+      );
+      
+      console.log('Successfully recorded presence:', result);
+      
+      return {
+        status: 'success',
+        message: `${userRole} presence recorded successfully`,
+        data: {
+          appointment_id: result.id,
+          is_doctor_present: result.is_doctor_present,
+          is_patient_present: result.is_patient_present,
+          status: result.status
+        }
+      };
+    } catch (error) {
+      console.error('Error in recordPresence:', {
+        error: error.message,
+        stack: error.stack,
+        userId,
+        userRole,
+        appointmentId
+      });
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Failed to record presence: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   // Midtrans webhook handler
@@ -216,6 +293,107 @@ async getAppointmentsByStatus(
   );
 }
 
+@Patch('diagnosis/:id')
+@UseGuards(JwtGuard, RoleGuard)
+@Roles(peran.DOCTOR)  // Add role guard to ensure only doctors can set diagnosis
+async setDiagnosis(
+  @Request() req,
+  @Param('id') id: string,
+  @Body() diagnosisDto: completeDto
+) {
+  console.log('Request usear:', {
+    id: req.user.sub,
+    role: req.user.role
+  });
   
+  if (!req.user || !req.user.sub) {
+    throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+  }
+  
+  return this.appointmentService.setDiagnosis(req.user.sub, id, diagnosisDto);
+}
+
+@Get('doctor/consultations')
+@UseGuards(JwtGuard, RoleGuard)
+@Roles(peran.DOCTOR)
+async getDoctorConsultations(
+  @Request() req,
+  @Query('page') page: number = 1,
+  @Query('limit') limit: number = 10
+) {
+  return this.appointmentService.getDoctorConsultationHistory(
+    req.user.sub,
+    page,
+    limit
+  );
+}
+
+@Get('admin/report')
+@UseGuards(JwtGuard, RoleGuard)
+@Roles(peran.ADMIN)
+async getAdminAppointmentReport(
+  @Query('status') status?: AppointmentStatus[],
+  @Query('startDate') startDate?: string,
+  @Query('endDate') endDate?: string,
+  @Query('page') page: number = 1,
+  @Query('limit') limit: number = 10
+) {
+  const start = startDate ? new Date(startDate) : undefined;
+  const end = endDate ? new Date(endDate) : undefined;
+
+  return this.appointmentService.getAdminAppointmentReport(
+    status,
+    start,
+    end,
+    page,
+    limit
+  );
+}
+
+@Get('admin/list')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(peran.ADMIN)
+  async getAdminTransactionList(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    return this.appointmentService.getAdminTransactionList(
+      page,
+      limit,
+      search,
+      start,
+      end
+    );
+  }
+
+  @Get('doctor/list')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(peran.DOCTOR)
+  async getDoctorTransactionList(
+    @Request() req,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    return this.appointmentService.getDoctorTransactionList(
+      req.user.sub,
+      page,
+      limit,
+      search,
+      start,
+      end
+    );
+  }
 
 }

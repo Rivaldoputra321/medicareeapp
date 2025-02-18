@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -71,56 +71,78 @@ export class PatientService {
     }
 
     async updatePatientProfile(patientId: string, updatepatientDto: UpdatePatientDto, file?: Express.Multer.File): Promise<Patient> {
-      const patient = await this.patientRepository.findOne({
-        where: { id: patientId },
-        relations: ['user'],
-      });
+      try {
+        const patient = await this.patientRepository.findOne({
+          where: { id: patientId },
+          relations: ['user'],
+        });
     
-      if (!patient) {
-        throw new NotFoundException('patient not found');
-      }
-    
-      if (file) {
-        const oldPhotoPath = join(__dirname, '..', '..', 'uploads', 'patient', patient.user.photo_profile);
-        if (patient.user.photo_profile && fs.existsSync(oldPhotoPath)) {
-          fs.unlinkSync(oldPhotoPath);
+        if (!patient) {
+          throw new NotFoundException('patient not found');
         }
-        patient.user.photo_profile = file.filename;
-      }
     
-      if (updatepatientDto.name) {
-        patient.user.name = updatepatientDto.name;
-      }
-
-      if (updatepatientDto.date_of_birth) {
-        patient.date_of_birth = updatepatientDto.date_of_birth;
-      }
-
-      if (updatepatientDto.gender) {
-        patient.gender = updatepatientDto.gender;
-      }
-      
+        // Handle file upload
+        if (file) {
+          try {
+            // Hapus foto lama jika ada
+            if (patient.user.photo_profile) {
+              const oldPhotoPath = join(__dirname, '..', '..', 'uploads', 'patient', patient.user.photo_profile);
+              if (fs.existsSync(oldPhotoPath)) {
+                fs.unlinkSync(oldPhotoPath);
+              }
+            }
+            patient.user.photo_profile = file.filename;
+          } catch (error) {
+            console.error('Error handling file:', error);
+            throw new InternalServerErrorException('Error processing profile photo');
+          }
+        }
     
-      await this.userRepository.save(patient.user);
-      return this.patientRepository.save(patient);
+        // Update other fields
+        if (updatepatientDto.name) {
+          patient.user.name = updatepatientDto.name;
+        }
+    
+        if (updatepatientDto.date_of_birth) {
+          patient.date_of_birth = updatepatientDto.date_of_birth;
+        }
+    
+        if (updatepatientDto.gender) {
+          patient.gender = updatepatientDto.gender;
+        }
+    
+        if (updatepatientDto.height !== undefined) {
+          patient.height = updatepatientDto.height;
+        }
+    
+        if (updatepatientDto.weight !== undefined) {
+          patient.weight = updatepatientDto.weight;
+        }
+    
+        // Save changes
+        await this.userRepository.save(patient.user);
+        return await this.patientRepository.save(patient);
+      } catch (error) {
+        console.error('Error in updatePatientProfile:', error);
+        throw error;
+      }
     }
 
-    async getpatientById(id: string) { 
+    async getUserPatient(userId: string) { 
       const patient = await this.patientRepository.createQueryBuilder('patient')
         .leftJoin('patient.user', 'user')
-        .addSelect(['user.id', 'user.name', 'user.photo_profile',])
-        .where('patient.id = :id', { id })
+        .addSelect(['user.id', 'user.name', 'user.email', 'user.photo_profile'])
+        .where('user.id = :userId', { userId })
         .getOne();
     
       if (!patient) {
-        throw new NotFoundException('patient not found');
+        throw new NotFoundException('Patient not found');
       }
+    
       if (patient.user.photo_profile) {
-        const baseUrl =  'http://localhost:8000';
+        const baseUrl = 'http://localhost:8000';
         patient.user.photo_profile = `${baseUrl}/uploads/patient/${patient.user.photo_profile}`;
       }
-  
-  
     
       return patient;
     }

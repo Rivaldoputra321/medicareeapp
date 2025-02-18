@@ -39,6 +39,9 @@ export class Transaction {
   
     @Column({name: 'midtrans_transaction_id', nullable: true })
     midtransTransactionId: string;
+
+    @Column()
+    payment_link : string;
   
     @Column({
       type: 'enum',

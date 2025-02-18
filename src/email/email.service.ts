@@ -91,14 +91,37 @@ export class EmailService implements OnModuleInit {
       html,
     );
   }
-
+  async sendDiagnosisReminder(appointment: Appointment) {
+    console.log('Sending diagnosis reminder for appointment:', appointment.id);
+    
+    try {
+      const html = this.emailTemplateService.getDiagnosisReminderTemplate(appointment);
+      
+      await this.sendMail(
+        appointment.doctor.user.email,
+        'Action Required: Complete Patient Diagnosis',
+        html
+      );
+      
+      console.log('Successfully sent diagnosis reminder for appointment:', appointment.id);
+    } catch (error) {
+      console.error('Failed to send diagnosis reminder:', error);
+      throw error;
+    }
+  }
   async sendMeetingLink(appointment: Appointment) {
+    try{
     const html = this.emailTemplateService.getMeetingLinkTemplate(appointment);
     return await this.sendMail(
       appointment.patient.user.email,
       'Your Meeting Link is Ready',
       html,
     );
+    }catch(error){
+      console.log("failed send meeting link", error)
+    }
+    
+  
   }
 
   async sendRefundNotification(appointment: Appointment) {

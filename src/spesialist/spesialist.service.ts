@@ -1,11 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSpesialistDto } from './dto/create-spesialist.dto';
 import { UpdateSpesialistDto } from './dto/update-spesialist.dto';
-import { Brackets, Not, Repository } from 'typeorm';
+import { Brackets, DataSource, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Spesialist } from 'src/entities/spesialists.entity';
 import { Doctor } from 'src/entities/doctors.entity';
 import { User } from 'src/entities/users.entity';
+import { join } from 'path';
+import * as fs from 'fs';
 
 @Injectable()
 export class SpesialistService {
@@ -17,6 +19,8 @@ export class SpesialistService {
     private doctorRepository: Repository<Doctor>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    
+      private readonly dataSource: DataSource
   ) {}
 
   async create(createSpesialistDto: CreateSpesialistDto) {
@@ -175,29 +179,63 @@ export class SpesialistService {
     return spesialist;
   }
   
-  async update(id: string, updateSpesialistDto: UpdateSpesialistDto) {
-    // Temukan spesialist berdasarkan ID
-    const spesialist = await this.spesialistRepository.findOne({ where: { id } });
-    
-    if (!spesialist) {
-      throw new NotFoundException('Spesialis tidak ditemukan');
+  async updateSpesialist(
+    spesialistId: string,
+    updateSpesialistDto: UpdateSpesialistDto,
+    file?: Express.Multer.File
+  ): Promise<Spesialist> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+  
+    try {
+      // Temukan spesialis berdasarkan ID
+      const spesialist = await queryRunner.manager.findOne(Spesialist, {
+        where: { id: spesialistId },
+      });
+  
+      if (!spesialist) {
+        throw new NotFoundException('Spesialis tidak ditemukan');
+      }
+  
+      // Update nama jika ada
+      if (updateSpesialistDto.name) {
+        const existingSpesialist = await queryRunner.manager.findOne(Spesialist, {
+          where: { name: updateSpesialistDto.name, id: Not(spesialist.id) },
+        });
+  
+        if (existingSpesialist) {
+          throw new HttpException('Nama spesialis sudah digunakan', HttpStatus.CONFLICT);
+        }
+        spesialist.name = updateSpesialistDto.name;
+      }
+  
+      // Update gambar jika ada file baru
+      if (file) {
+        const oldImagePath = join(__dirname, '..', '..', 'uploads', 'spesialists', spesialist.gambar);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath); // Hapus gambar lama jika ada
+        }
+        spesialist.gambar = file.filename; // Simpan nama file baru
+      }
+  
+      // Simpan perubahan spesialis
+      const updatedSpesialist = await queryRunner.manager.save(Spesialist, spesialist);
+  
+      // Commit transaksi
+      await queryRunner.commitTransaction();
+  
+      return updatedSpesialist;
+    } catch (error) {
+      // Rollback transaksi jika ada error
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      // Release query runner
+      await queryRunner.release();
     }
-  
-    // Cek apakah nama yang ingin diupdate sudah ada pada spesialis lain
-    const existingSpesialist = await this.spesialistRepository.findOne({
-      where: { name: updateSpesialistDto.name, id: Not(id) }, // Pastikan ID berbeda
-    });
-  
-    if (existingSpesialist) {
-      throw new ConflictException('Spesialis dengan nama ini sudah ada');
-    }
-  
-    // Lakukan update
-    await this.spesialistRepository.update(id, updateSpesialistDto);
-  
-    // Kembalikan spesialis yang telah diupdate
-    return this.findOne(id);
   }
+  
   
 
   

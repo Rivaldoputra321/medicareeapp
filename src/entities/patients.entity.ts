@@ -24,6 +24,12 @@ export class Patient {
   @Column({type: 'enum', enum : genders})
   gender: genders;
 
+  @Column({ nullable: true })
+  height: number;
+
+  @Column({ nullable: true })
+  weight: number;
+  
   @Column({type: 'timestamp', default:() =>  'CURRENT_TIMESTAMP' })
   created_at: Date;
   

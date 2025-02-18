@@ -31,11 +31,6 @@ import { ScheduleModule } from '@nestjs/schedule';
       imports: [ConfigModule, TypeOrmModule.forRoot(source.options),],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        timezone: 'Asia/Jakarta',
-        dateStrings: true,
-        extra: {
-          timezone: 'Asia/Jakarta'
-        },
         type: 'postgres',
         host: configService.get<string>('POSTGRES_HOST'),
         port: configService.get<number>('POSTGRES_PORT'),

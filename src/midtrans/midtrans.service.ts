@@ -1,7 +1,9 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as midtransClient from 'midtrans-client';
-import { Transaction } from '../entities/transactions.entity';
+import { PaymentStatus, Transaction } from '../entities/transactions.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class MidtransService {
@@ -9,7 +11,11 @@ export class MidtransService {
   private readonly core: midtransClient.CoreApi;
   private readonly logger = new Logger(MidtransService.name);
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService,
+
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>
+  ) {
     const serverKey = this.configService.get<string>('MIDTRANS_SERVER_KEY');
     const clientKey = this.configService.get<string>('MIDTRANS_CLIENT_KEY');
     const isProduction = this.configService.get<boolean>('MIDTRANS_IS_PRODUCTION');
@@ -32,26 +38,26 @@ export class MidtransService {
     });
 
     // Simple auth test
-    // this.testAuth();
+    this.testAuth();
   }
 
-  // private async testAuth() {
-  //   try {
-  //     const testTransaction = {
-  //       transaction_details: {
-  //         order_id: `test-${Date.now()}`,
-  //         gross_amount: 10000
-  //       }
-  //     };
+  private async testAuth() {
+    try {
+      const testTransaction = {
+        transaction_details: {
+          order_id: `test-${Date.now()}`,
+          gross_amount: 10000
+        }
+      };
       
-  //     const result = await this.snap.createTransaction(testTransaction);
-  //     this.logger.log('Midtrans auth successful');
-  //     return result;
-  //   } catch (error) {
-  //     this.logger.error('Midtrans auth failed:', error.message);
-  //     throw error;
-  //   }
-  // }
+      const result = await this.snap.createTransaction(testTransaction);
+      this.logger.log('Midtrans auth successful');
+      return result;
+    } catch (error) {
+      this.logger.error('Midtrans auth failed:', error.message);
+      throw error;
+    }
+  }
 
   async createPaymentLink(transaction: Transaction): Promise<string> {
     try {
@@ -101,7 +107,7 @@ export class MidtransService {
       if (!response || !response.redirect_url) {
         throw new Error('Invalid response from Midtrans');
       }
-  
+      transaction.payment_link = response.redirect_url; 
       return response.redirect_url;
     } catch (error) {
       this.logger.error(`Failed to create payment link:`, {
@@ -115,35 +121,60 @@ export class MidtransService {
 
   async processRefund(transaction: Transaction) {
     try {
-      if (!transaction.midtransTransactionId) {
+      if (!transaction || !transaction.midtransOrderId) {
         throw new HttpException(
-          'Transaction ID not found',
+          'Transaction or Order ID not found',
           HttpStatus.BAD_REQUEST
         );
       }
-
+  
+      this.logger.debug('Processing refund for transaction:', {
+        transactionId: transaction.id,
+        orderId: transaction.midtransOrderId
+      });
+  
+      // Get transaction status from Midtrans using order ID
+      const statusResponse = await this.core.transaction.status(transaction.midtransOrderId);
+      
+      if (!statusResponse || !statusResponse.transaction_id) {
+        throw new HttpException(
+          'Midtrans transaction not found',
+          HttpStatus.NOT_FOUND
+        );
+      }
+  
       const parameter = {
         refund_key: `refund-${transaction.id}-${Date.now()}`,
         amount: Math.round(Number(transaction.amount)),
         reason: 'Appointment cancelled or doctor no-show',
       };
-
-      const response = await this.core.refund(
-        transaction.midtransTransactionId,
-        parameter,
+  
+      this.logger.debug('Refund parameters:', parameter);
+  
+      // Fixed: Use this.core.transaction.refund instead of this.core.refund
+      const response = await this.core.transaction.refund(
+        statusResponse.transaction_id,
+        parameter
       );
-
+  
+      this.logger.debug('Refund response:', response);
+  
+      // Update transaction status after successful refund
+      transaction.status = PaymentStatus.REFUND;
+      await this.transactionRepository.save(transaction);
+  
       return response;
     } catch (error) {
-      this.logger.error(
-        `Failed to process refund for transaction ${transaction.id}: ${error.message}`,
-        error.stack
-      );
-
+      this.logger.error('Failed to process refund:', {
+        transactionId: transaction.id,
+        error: error.message,
+        stack: error.stack
+      });
+  
       if (error instanceof HttpException) {
         throw error;
       }
-
+  
       throw new HttpException(
         'Failed to process refund',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -151,28 +182,72 @@ export class MidtransService {
     }
   }
 
-  async verifyPayment(midtransOrderId: string) {
+  async verifyPayment(orderId: string) {
     try {
-      if (!midtransOrderId) {
+      if (!orderId) {
         throw new HttpException(
           'Order ID is required',
           HttpStatus.BAD_REQUEST
         );
       }
 
-      const response = await this.core.transaction.status(midtransOrderId);
+      this.logger.debug('Verifying payment for order:', orderId);
+
+      const response = await this.core.transaction.status(orderId);
       
-      // Validate response
       if (!response || !response.transaction_status) {
-        throw new Error('Invalid response from Midtrans');
+        throw new HttpException(
+          'Invalid response from Midtrans',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      this.logger.debug('Payment verification response:', response);
+
+      // Find and update the transaction with Midtrans transaction ID
+      if (response.transaction_id) {
+        const transaction = await this.transactionRepository.findOne({
+          where: { midtransOrderId: orderId }
+        });
+
+        if (transaction) {
+          transaction.midtransTransactionId = response.transaction_id;
+          
+          // Update transaction status based on Midtrans response
+          switch (response.transaction_status) {
+            case 'capture':
+            case 'settlement':
+              transaction.status = PaymentStatus.SETTLEMENT;
+              transaction.paidAt = new Date();
+              break;
+            case 'deny':
+              transaction.status = PaymentStatus.DENY;
+              break;
+            case 'cancel':
+              transaction.status = PaymentStatus.CANCEL;
+              break;
+            case 'expire':
+              transaction.status = PaymentStatus.EXPIRE;
+              break;
+            case 'pending':
+              transaction.status = PaymentStatus.PENDING;
+              break;
+            case 'refund':
+              transaction.status = PaymentStatus.REFUND;
+              break;
+          }
+
+          await this.transactionRepository.save(transaction);
+        }
       }
 
       return response;
     } catch (error) {
-      this.logger.error(
-        `Failed to verify payment for order ${midtransOrderId}: ${error.message}`,
-        error.stack
-      );
+      this.logger.error('Failed to verify payment:', {
+        orderId,
+        error: error.message,
+        stack: error.stack
+      });
 
       if (error instanceof HttpException) {
         throw error;

@@ -92,10 +92,32 @@ async findDoctorOffline(
 
 
 
-  @Put('update/:id')
-  async update(@Param('id') id: string, @Body() updateSpesialistDto: UpdateSpesialistDto) {
-    return this.spesialistService.update(id, updateSpesialistDto);
+@Patch('update/:id')
+@UseInterceptors(FileInterceptor('gambar', {
+  storage: diskStorage({
+    destination: './uploads/spesialis', // Ubah folder penyimpanan
+    filename: (req, file, cb) => {
+      const name = file.originalname.split('.')[0];
+      const fileExtension = file.originalname.split('.')[1];
+      const newFileName = name.split(' ').join('-') + '-' + Date.now() + '.' + fileExtension;
+      cb(null, newFileName);
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+      return cb(null, false);
+    }
+    cb(null, true);
   }
+}))
+async updateSpesialist(
+  @Param('id') id: string,
+  @Body() updateSpesialistDto: UpdateSpesialistDto,
+  @UploadedFile() file?: Express.Multer.File
+) {
+  return this.spesialistService.updateSpesialist(id, updateSpesialistDto, file);
+}
+
   
   @Delete('delete/:id')
   async remove(@Param('id') id: string) {

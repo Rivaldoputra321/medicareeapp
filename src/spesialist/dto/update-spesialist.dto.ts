@@ -7,4 +7,8 @@ export class UpdateSpesialistDto extends PartialType(CreateSpesialistDto) {
     @IsOptional()
     name:  string;
 
+
+    @IsOptional()
+    gambar?:  string;
+
 }

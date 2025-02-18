@@ -29,6 +29,16 @@ export class CreatePatientsTable1729745337000 implements MigrationInterface {
                         enum: ['male', 'female'],
                     },
                     {
+                        name: 'height',
+                        type: 'int',
+                        isNullable: true,
+                    },
+                    {
+                        name: 'weight',
+                        type: 'int',
+                        isNullable: true,
+                    },
+                    {
                         name: 'created_at',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',

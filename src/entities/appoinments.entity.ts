@@ -53,6 +53,12 @@ export class Appointment {
   @Column({ type: 'timestamp', nullable: true })
   link_sent_at: Date;
 
+  @Column({ nullable: true })
+  diagnosis: string;
+
+  @Column({ nullable: true })
+  note: string;
+
   @Column({ default: 0 })
   reschedule_count: number;
 
@@ -69,7 +75,7 @@ export class Appointment {
   doctor_join_time: Date;
 
   @Column({ type: 'timestamp', nullable: true })
-  patient_join_time: Date;
+  patient_joint_time: Date;
 
   @Column({ type: 'timestamp', nullable: true })
   completed_at: Date;

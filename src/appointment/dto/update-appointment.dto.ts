@@ -9,18 +9,31 @@ export class UpdateAppointmentStatusDto {
     @IsOptional()
     rejectionReason?: string;
 
-    @IsDateString()
-    @IsOptional()
-    reschedule?: Date;
+
 
     status : string;
   }
 
   
+
+  export class RescheduleDto {
+    @IsDateString()
+    @IsOptional()
+    reschedule?: Date;
+  }
   
   export class SetMeetingLinkDto {
     @IsString()
     meetingLink: string;
   }
 
+  
+  export class completeDto {
+    @IsString()
+    note: string;
+
+    @IsString()
+    diagnosis: string;
+  }
+  
   

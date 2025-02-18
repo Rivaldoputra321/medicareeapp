@@ -59,6 +59,12 @@ export class CreateTransactionsTable1736678360662 implements MigrationInterface 
                         type: "varchar",
                         isNullable: true
                     },
+
+                    {
+                        name: "payment_link",
+                        type: "varchar",
+                        isNullable: true
+                    },
                     {
                         name: "admin_fee",
                         type: "decimal",

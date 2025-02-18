@@ -25,6 +25,16 @@ export class DoctorController {
   }
   }
 
+  @Get('user/:id')
+  async getDoctorByUserId(@Param('id') userId: string) {
+    try {
+      const doctor = await this.doctorService.getDoctorByUserId(userId);
+      return { doctor};
+    } catch (error) {
+      return{'error': error}
+  }
+  }
+
 // doctor.controller.ts
 @Post()
 @UseInterceptors(

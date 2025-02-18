@@ -1,6 +1,6 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, IsNull, In, DataSource, QueryRunner, Between, Not, LessThan } from 'typeorm';
+import { Repository, MoreThanOrEqual, IsNull, In, DataSource, QueryRunner, Between, Not, LessThan, Brackets } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from 'src/email/email.service';
@@ -8,7 +8,7 @@ import { Appointment, AppointmentStatus } from 'src/entities/appoinments.entity'
 import { PaymentStatus, Transaction } from 'src/entities/transactions.entity';
 import { MidtransService } from 'src/midtrans/midtrans.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { SetMeetingLinkDto, UpdateAppointmentStatusDto } from './dto/update-appointment.dto';
+import { completeDto, RescheduleDto, SetMeetingLinkDto, UpdateAppointmentStatusDto } from './dto/update-appointment.dto';
 import { Doctor } from 'src/entities/doctors.entity';
 import { Patient } from 'src/entities/patients.entity';
 import { peran } from 'src/entities/roles.entity';
@@ -251,16 +251,26 @@ export class AppointmentService {
             adminFee: amount * 0.1,
             doctorFee: amount * 0.9,
             status: PaymentStatus.PENDING,
-            midtransOrderId: `ORDER-${Date.now()}-${savedAppointment.id}`
+            midtransOrderId: null
           });
           
+          // Simpan transaction dulu untuk mendapatkan ID
           const savedTransaction = await queryRunner.manager.save(transaction);
+          
+          // Dapatkan payment link dari Midtrans
+          const paymentLink = await this.midtransService.createPaymentLink(savedTransaction);
+          
+          // Update transaction dengan payment link
+          savedTransaction.payment_link = paymentLink;
+          await queryRunner.manager.save(Transaction, savedTransaction);
+          
+          // Update appointment dengan transaction yang sudah memiliki payment link
           savedAppointment.transaction = savedTransaction;
           await queryRunner.manager.save(Appointment, savedAppointment);
-        
-          const paymentLink = await this.midtransService.createPaymentLink(savedTransaction);
+      
           await this.emailService.sendPaymentLink(savedAppointment, paymentLink);
           break;
+
         }
 
         case 'reject': {
@@ -303,7 +313,7 @@ export class AppointmentService {
   async rescheduleAppointment(
     patientId: string,
     appointmentId: string,
-    updateDto: UpdateAppointmentStatusDto,
+    rescheduleDto: RescheduleDto,
   ) {
     const queryRunner: QueryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -317,12 +327,14 @@ export class AppointmentService {
           status: AppointmentStatus.REJECTED 
         },
         relations: {
-          doctor: true,
+          doctor: {
+            user: true, // Include `doctor.user`
+          },
           patient: {
-            user: true
-          }
-        }
-      });
+            user: true,
+          },
+        },
+      });      
 
       if (!appointment) {
         throw new HttpException(
@@ -339,7 +351,7 @@ export class AppointmentService {
       }
 
       // Update appointment
-      appointment.schedule = updateDto.reschedule;
+      appointment.schedule = rescheduleDto.reschedule;
       appointment.status = AppointmentStatus.PENDING;
       appointment.reschedule_count += 1;
 
@@ -498,16 +510,17 @@ async setMeetingLink(
   // Get meeting link expiry hours from config
   const meetingLinkExpiryHours = this.configService.get<number>('app.meetingLinkExpiryHours') || 24;
   
-  // Calculate expiry date properly
-  const now = new Date();
-  const expiryDate = new Date(now.getTime() + (meetingLinkExpiryHours * 60 * 60 * 1000));
+  // Calculate expiry date in WIB timezone
+  const nowUTC = new Date();
+  const nowWIB = this.convertToWIB(nowUTC);
+  const expiryDateWIB = new Date(nowWIB.getTime() + (meetingLinkExpiryHours * 60 * 60 * 1000));
 
   try {
     // Update appointment with meeting link and dates, and change status
     appointment.meeting_link = meetingLink;
-    appointment.link_sent_at = now;
-    appointment.meeting_link_expired = expiryDate;
-    appointment.status = AppointmentStatus.AWAITING_JOIN_LINK; // New status
+    appointment.link_sent_at = nowWIB;
+    appointment.meeting_link_expired = expiryDateWIB;
+    appointment.status = AppointmentStatus.AWAITING_JOIN_LINK;
 
     const savedAppointment = await this.appointmentRepo.save(appointment);
     
@@ -529,47 +542,114 @@ async setMeetingLink(
 }
 
 
+
 async recordPresence(
   appointmentId: string,
   userId: string,
-  userType: 'doctor' | 'patient',
+  userType: peran.DOCTOR | peran.PATIENT,
 ) {
+  console.log('recordPresence called with:', {
+    appointmentId,
+    userId,
+    userType
+  });
+  
   const appointment = await this.appointmentRepo.findOne({
-    where: { id: appointmentId },
+    where: { 
+      id: appointmentId,
+      status: AppointmentStatus.AWAITING_JOIN_LINK
+    },
     relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
   });
 
+  console.log('Found appointment:', {
+    appointmentExists: !!appointment,
+    appointmentStatus: appointment?.status,
+    doctorId: appointment?.doctor?.user?.id,
+    patientId: appointment?.patient?.user?.id
+  });
+
   if (!appointment) {
-    throw new HttpException('Appointment not found', HttpStatus.NOT_FOUND);
+    throw new HttpException(
+      'Appointment not found or not in awaiting join link status',
+      HttpStatus.NOT_FOUND
+    );
   }
 
-  if (userType === 'doctor' && appointment.doctor.user.id !== userId) {
-    throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+  const doctorUserId = appointment.doctor?.user?.id;
+  const patientUserId = appointment.patient?.user?.id;
+
+  console.log('User IDs comparison:', {
+    requestUserId: userId,
+    doctorUserId,
+    patientUserId,
+    userType
+  });
+
+  if (!doctorUserId || !patientUserId) {
+    console.error('Missing user relations:', {
+      doctorUserId,
+      patientUserId,
+      appointmentId
+    });
+    throw new HttpException(
+      'Invalid appointment data: missing user relations',
+      HttpStatus.INTERNAL_SERVER_ERROR
+    );
   }
-  if (userType === 'patient' && appointment.patient.user.id !== userId) {
-    throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+
+  // Convert IDs to strings for comparison
+  const stringDoctorId = String(doctorUserId);
+  const stringPatientId = String(patientUserId);
+  const stringUserId = String(userId);
+
+  console.log('String ID comparison:', {
+    stringUserId,
+    stringDoctorId,
+    stringPatientId,
+    userType
+  });
+
+  if (userType === peran.DOCTOR && stringDoctorId !== stringUserId) {
+    console.error('Doctor authorization failed:', {
+      appointmentDoctorId: stringDoctorId,
+      requestUserId: stringUserId
+    });
+    throw new HttpException('Unauthorized: Doctor ID mismatch', HttpStatus.UNAUTHORIZED);
+  }
+  
+  if (userType === peran.PATIENT && stringPatientId !== stringUserId) {
+    console.error('Patient authorization failed:', {
+      appointmentPatientId: stringPatientId,
+      requestUserId: stringUserId
+    });
+    throw new HttpException('Unauthorized: Patient ID mismatch', HttpStatus.UNAUTHORIZED);
   }
 
   const now = new Date();
-
-  if (userType === 'doctor') {
+  if (userType === peran.DOCTOR) {
     appointment.is_doctor_present = true;
     appointment.doctor_join_time = now;
   } else {
     appointment.is_patient_present = true;
-    appointment.patient_join_time = now;
+    appointment.patient_joint_time = now;
   }
 
   if (appointment.is_doctor_present && appointment.is_patient_present) {
     appointment.status = AppointmentStatus.IN_PROGRESS;
-    appointment.started_at = now; // Track when consultation actually starts
+    appointment.started_at = now;
   }
+
+  console.log('Saving appointment with updates:', {
+    isDoctorPresent: appointment.is_doctor_present,
+    isPatientPresent: appointment.is_patient_present,
+    status: appointment.status
+  });
 
   return this.appointmentRepo.save(appointment);
 }
 
-
-@Cron('*/5 * * * *')
+@Cron('*/1 * * * *')
 async sendMeetingReminders() {
   try {
     const now = new Date();
@@ -610,45 +690,103 @@ async sendMeetingReminders() {
   }
 }
 
-// Add new method to auto-complete appointments after 35 minutes
-@Cron('*/1 * * * *')
-async autoCompleteAppointments() {
+async setDiagnosis(
+  doctorId: string,
+  appointmentId: string,
+  completeDto: completeDto,
+) {
+  const appointment = await this.appointmentRepo.findOne({
+    where: { 
+      id: appointmentId,
+      status: AppointmentStatus.IN_PROGRESS
+    },
+    relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
+  });
+
+  if (!appointment) {
+    throw new HttpException(
+      'Active appointment not found',
+      HttpStatus.NOT_FOUND,
+    );
+  }
+
+  // Check if the doctor making the request matches the appointment's doctor
+  if (appointment.doctor.user.id !== doctorId) {
+    this.logger.error(`Authorization failed: Doctor ${doctorId} attempted to modify appointment ${appointmentId} belonging to doctor ${appointment.doctor.user.id}`);
+    throw new HttpException(
+      'You are not authorized to modify this appointment',
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+
+  if (!completeDto.diagnosis || !completeDto.note) {
+    throw new HttpException(
+      'Both diagnosis and note are required',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  try {
+    appointment.diagnosis = completeDto.diagnosis;
+    appointment.note = completeDto.note;
+    appointment.status = AppointmentStatus.COMPLETED;
+    appointment.completed_at = new Date();
+
+    const savedAppointment = await this.appointmentRepo.save(appointment);
+    
+    // Send completion notification
+    try {
+      await this.emailService.sendAppointmentCompletionNotification(savedAppointment);
+    } catch (error) {
+      this.logger.error(`Failed to send completion notification for appointment ${appointment.id}:`, error);
+    }
+
+    return savedAppointment;
+  } catch (error) {
+    this.logger.error('Error setting diagnosis:', {
+      error: error.message,
+      stack: error.stack,
+      appointmentId,
+      doctorId
+    });
+    throw new HttpException(
+      'Failed to set diagnosis and complete appointment',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+}
+
+// Replace the old autoCompleteAppointments with a diagnosis check
+@Cron('*/5 * * * *') // Run every 5 minutes
+async checkIncompleteAppointments() {
   try {
     const now = new Date();
     
-    const activeAppointments = await this.appointmentRepo.find({
+    // Find IN_PROGRESS appointments that have been inactive for too long
+    const inactiveAppointments = await this.appointmentRepo.find({
       where: {
         status: AppointmentStatus.IN_PROGRESS,
-        started_at: Not(IsNull()),
+        started_at: LessThan(new Date(now.getTime() - 60 * 60 * 1000)), // 1 hour old
+        diagnosis: IsNull(),
+        note: IsNull()
       },
       relations: ['doctor', 'doctor.user', 'patient', 'patient.user']
     });
 
-    for (const appointment of activeAppointments) {
-      const startTime = new Date(appointment.started_at);
-      const durationMinutes = Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60));
-
-      if (durationMinutes >= 35) {
-        this.logger.log(`Auto-completing appointment ${appointment.id} after ${durationMinutes} minutes`);
-        
-        // Update appointment status
-        appointment.status = AppointmentStatus.COMPLETED;
-        appointment.completed_at = now;
-        
-        await this.appointmentRepo.save(appointment);
-        
-        // Send completion notification
-        try {
-          await this.emailService.sendAppointmentCompletionNotification(appointment);
-        } catch (error) {
-          this.logger.error(`Failed to send completion notification for appointment ${appointment.id}:`, error);
-        }
+    for (const appointment of inactiveAppointments) {
+      this.logger.log(`Found inactive appointment ${appointment.id} without diagnosis/note`);
+      
+      try {
+        await this.emailService.sendDiagnosisReminder(appointment);
+      } catch (error) {
+        this.logger.error(`Failed to send diagnosis reminder for appointment ${appointment.id}:`, error);
       }
     }
   } catch (error) {
-    this.logger.error('Error in autoCompleteAppointments cron job:', error);
+    this.logger.error('Error in checkIncompleteAppointments:', error);
   }
 }
+
   @Cron('*/1 * * * *')
   async handleTimeouts() {
     try {
@@ -664,6 +802,30 @@ async autoCompleteAppointments() {
       });
   
       for (const appointment of expiredPendingAppointments) {
+        this.logger.log(`Cancelling expired pending appointment ${appointment.id}`);
+        appointment.status = AppointmentStatus.CANCELLED;
+      
+        await this.appointmentRepo.save(appointment);
+        
+        try {
+          await this.emailService.sendAppointmentCancellation(
+            appointment,
+            'Your appointment has been cancelled as the doctor did not respond before the scheduled time.'
+          );
+        } catch (error) {
+          this.logger.error(`Failed to send cancellation notification for appointment ${appointment.id}:`, error);
+        }
+      }
+
+      const expiredAwaitingAppointments = await this.appointmentRepo.find({
+        where: {
+          status: AppointmentStatus.AWAITING_JOIN_LINK,
+          schedule: LessThan(now),
+        },
+        relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
+      });
+  
+      for (const appointment of expiredAwaitingAppointments) {
         this.logger.log(`Cancelling expired pending appointment ${appointment.id}`);
         appointment.status = AppointmentStatus.CANCELLED;
       
@@ -739,38 +901,44 @@ async autoCompleteAppointments() {
           this.logger.log(`Processing refund for appointment ${appointment.id} due to no meeting link`);
           
           appointment.status = AppointmentStatus.CANCELLED;
-          appointment.transaction.status = PaymentStatus.REFUND;
+          
+          // Ensure transaction exists before processing
+          if (appointment.transaction) {
+            appointment.transaction.status = PaymentStatus.REFUND;
+            await this.transactionRepo.save(appointment.transaction);
+            
+            try {
+              // Use midtransOrderId for refund
+              await this.midtransService.processRefund(appointment.transaction);
+              await this.emailService.sendRefundNotification(appointment);
+            } catch (error) {
+              this.logger.error(`Failed to process refund for appointment ${appointment.id}:`, error);
+            }
+          }
           
           await this.appointmentRepo.save(appointment);
-          await this.transactionRepo.save(appointment.transaction);
-          
-          try {
-            await this.midtransService.processRefund(appointment.transaction);
-            await this.emailService.sendRefundNotification(appointment);
-          } catch (error) {
-            this.logger.error(`Failed to process refund for appointment ${appointment.id}:`, error);
-          }
         }
       }
     } catch (error) {
       this.logger.error('Error in handleTimeouts:', error);
     }
+    
   }
   
   async getAppointmentsByStatus(
     userId: string,
     userType: peran.DOCTOR | peran.PATIENT,
     statusGroup: 'waiting' | 'failed' | 'completed',
-    page: number = 1, // Default page
-    limit: number = 10 // Default items per page
+    page: number = 1,
+    limit: number = 10
   ) {
-    const offset = (page - 1) * limit; // Calculate offset for pagination
+    const offset = (page - 1) * limit;
   
     const baseQuery = this.appointmentRepo.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.doctor', 'doctor')
-      .leftJoinAndSelect('doctor.user', 'doctorUser')
+      .innerJoin('doctor.user', 'doctorUser')
       .leftJoinAndSelect('appointment.patient', 'patient')
-      .leftJoinAndSelect('patient.user', 'patientUser')
+      .innerJoin('patient.user', 'patientUser')
       .leftJoinAndSelect('appointment.transaction', 'transaction')
       .select([
         'appointment',
@@ -781,20 +949,17 @@ async autoCompleteAppointments() {
         'patientUser.name', 
         'patientUser.photo_profile',
         'transaction'
-      ]);
-  
-    // Tambahkan kondisi berdasarkan tipe pengguna (doctor atau patient)
-    if (userType === peran.DOCTOR) {
-      baseQuery.where('doctor.user.id = :userId', { userId });
-    } else if (userType === peran.PATIENT) {
-      baseQuery.where('patient.user.id = :userId', { userId });
-    }
-  
-    // Tambahkan kondisi status berdasarkan status group
+      ])
+      .where(new Brackets(qb => {
+        qb.where('doctorUser.id = :userId', { userId })
+          .orWhere('patientUser.id = :userId', { userId });
+      }));
+
     switch (statusGroup) {
       case 'waiting':
         baseQuery.andWhere('appointment.status IN (:...statuses)', {
           statuses: [
+            AppointmentStatus.AWAITING_JOIN_LINK,
             AppointmentStatus.PENDING,
             AppointmentStatus.APPROVED,
             AppointmentStatus.AWAITING_PAYMENT,
@@ -822,30 +987,22 @@ async autoCompleteAppointments() {
         break;
     }
   
-    // Urutkan berdasarkan jadwal
     baseQuery.orderBy('appointment.schedule', 'DESC');
-  
-    // Tambahkan pagination
     baseQuery.skip(offset).take(limit);
   
-    // Jalankan query dan hitung total data
     const [appointments, total] = await baseQuery.getManyAndCount();
   
     const baseUrl = 'http://localhost:8000';
     const transformedAppointments = appointments.map(appointment => {
-      // Transform doctor's photo_profile jika ada
       if (appointment.doctor?.user?.photo_profile) {
         appointment.doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${appointment.doctor.user.photo_profile}`;
       }
-      // Transform patient's photo_profile jika ada
       if (appointment.patient?.user?.photo_profile) {
         appointment.patient.user.photo_profile = `${baseUrl}/uploads/patients/${appointment.patient.user.photo_profile}`;
       }
-  
       return appointment;
     });
   
-    // Return hasil dengan metadata pagination
     return {
       data: transformedAppointments,
       meta: {
@@ -855,5 +1012,354 @@ async autoCompleteAppointments() {
         totalPages: Math.ceil(total / limit)
       }
     };
-  }  
+  }
+  
+
+  async getDoctorConsultationHistory(doctorId: string, page: number = 1, limit: number = 10) {
+    const offset = (page - 1) * limit;
+  
+    const query = this.appointmentRepo.createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.patient', 'patient')
+      .leftJoinAndSelect('patient.user', 'patientUser')
+      .where('appointment.doctorId = :doctorId', { doctorId })
+      .andWhere('appointment.status = :status', { 
+        status: AppointmentStatus.COMPLETED 
+      })
+      .select([
+        'appointment.id',
+        'appointment.schedule',
+        'appointment.completed_at',
+        'appointment.diagnosis',
+        'appointment.note',
+        'patient',
+        'patientUser.name',
+        'patientUser.photo_profile'
+      ])
+      .orderBy('appointment.completed_at', 'DESC')
+      .skip(offset)
+      .take(limit);
+  
+    const [consultations, total] = await query.getManyAndCount();
+  
+    // Transform photo URLs
+    const baseUrl = this.configService.get('app.baseUrl');
+    const transformedConsultations = consultations.map(consultation => ({
+      ...consultation,
+      patient: {
+        ...consultation.patient,
+        user: {
+          ...consultation.patient.user,
+          photo_profile: consultation.patient.user.photo_profile 
+            ? `${baseUrl}/uploads/patients/${consultation.patient.user.photo_profile}`
+            : null
+        }
+      }
+    }));
+  
+    return {
+      data: transformedConsultations,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+  
+  async getAdminAppointmentReport(
+    statusFilter?: AppointmentStatus[],
+    startDate?: Date,
+    endDate?: Date,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    const offset = (page - 1) * limit;
+  
+    const query = this.appointmentRepo.createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.doctor', 'doctor')
+      .leftJoinAndSelect('doctor.user', 'doctorUser')
+      .leftJoinAndSelect('appointment.patient', 'patient')
+      .leftJoinAndSelect('patient.user', 'patientUser')
+      .leftJoinAndSelect('appointment.transaction', 'transaction');
+  
+    // Apply filters
+    if (statusFilter && statusFilter.length > 0) {
+      query.andWhere('appointment.status IN (:...statuses)', { statuses: statusFilter });
+    }
+  
+    if (startDate && endDate) {
+      query.andWhere('appointment.schedule BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate
+      });
+    }
+  
+    const [appointments, total] = await query
+      .orderBy('appointment.schedule', 'DESC')
+      .skip(offset)
+      .take(limit)
+      .getManyAndCount();
+  
+    // Calculate statistics
+    const statistics = {
+      total_appointments: total,
+      completed: appointments.filter(a => a.status === AppointmentStatus.COMPLETED).length,
+      cancelled: appointments.filter(a => a.status === AppointmentStatus.CANCELLED).length,
+      in_progress: appointments.filter(a => a.status === AppointmentStatus.IN_PROGRESS).length,
+      total_revenue: appointments.reduce((sum, app) => {
+        return sum + (app.transaction?.amount || 0);
+      }, 0)
+    };
+  
+    return {
+      data: appointments,
+      statistics,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+  
+  async getAdminTransactionList(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    const offset = (page - 1) * limit;
+
+    const query = this.appointmentRepo.createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.doctor', 'doctor')
+      .innerJoin('doctor.user', 'doctorUser')
+      .leftJoinAndSelect('appointment.patient', 'patient')
+      .innerJoin('patient.user', 'patientUser')
+      .leftJoinAndSelect('appointment.transaction', 'transaction')
+      .select([
+        'appointment.id',
+        'appointment.completed_at',
+        'appointment.schedule',
+        'doctor',
+        'doctorUser.name',
+        'doctorUser.photo_profile',
+        'patient',
+        'patientUser.name',
+        'patientUser.photo_profile',
+        'transaction'
+      ])
+      .where('appointment.status = :status', {
+        status: AppointmentStatus.COMPLETED
+      })
+      .andWhere('transaction.status = :transactionStatus', {
+        transactionStatus: PaymentStatus.SETTLEMENT
+      });
+
+    if (search) {
+      query.andWhere(new Brackets(qb => {
+        qb.where('doctorUser.name ILIKE :search', { search: `%${search}%` })
+          .orWhere('patientUser.name ILIKE :search', { search: `%${search}%` });
+      }));
+    }
+
+    if (startDate && endDate) {
+      query.andWhere('appointment.completed_at BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate
+      });
+    }
+
+    query.orderBy('appointment.completed_at', 'DESC')
+      .skip(offset)
+      .take(limit);
+
+    const [transactions, total] = await query.getManyAndCount();
+
+    // Calculate monthly total for admin
+    const currentDate = new Date();
+    const firstDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const lastDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
+
+    const monthlyTotal = await this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoin('appointment.transaction', 'transaction')
+      .where('appointment.status = :status', {
+        status: AppointmentStatus.COMPLETED
+      })
+      .andWhere('transaction.status = :transactionStatus', {
+        transactionStatus: PaymentStatus.SETTLEMENT
+      })
+      .andWhere('appointment.completed_at BETWEEN :startDate AND :endDate', {
+        startDate: firstDayOfMonth,
+        endDate: lastDayOfMonth
+      })
+      .select('SUM(transaction.adminFee)', 'monthlyAdminTotal')
+      .getRawOne();
+
+    // Transform photo URLs
+    const baseUrl = this.configService.get('app.baseUrl');
+    const transformedTransactions = transactions.map(transaction => ({
+      id: transaction.id,
+      completedAt: transaction.completed_at,
+      schedule: transaction.schedule,
+      doctor: {
+        ...transaction.doctor,
+        user: {
+          name: transaction.doctor.user.name,
+          photo_profile: transaction.doctor.user.photo_profile
+            ? `${baseUrl}/uploads/doctors/${transaction.doctor.user.photo_profile}`
+            : null
+        }
+      },
+      patient: {
+        ...transaction.patient,
+        user: {
+          name: transaction.patient.user.name,
+          photo_profile: transaction.patient.user.photo_profile
+            ? `${baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
+            : null
+        }
+      },
+      transaction: {
+        amount: transaction.transaction.amount,
+        adminFee: transaction.transaction.adminFee,
+        doctorFee: transaction.transaction.doctorFee
+      }
+    }));
+
+    return {
+      data: transformedTransactions,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      },
+      monthlyAdminTotal: monthlyTotal.monthlyAdminTotal || 0
+    };
+  }
+
+  async getDoctorTransactionList(
+    doctorId: string,
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    const offset = (page - 1) * limit;
+
+    const query = this.appointmentRepo.createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.patient', 'patient')
+      .innerJoin('patient.user', 'patientUser')
+      .leftJoinAndSelect('appointment.transaction', 'transaction')
+      .select([
+        'appointment.id',
+        'appointment.completed_at',
+        'appointment.schedule',
+        'patient',
+        'patientUser.name',
+        'patientUser.photo_profile',
+        'transaction'
+      ])
+      .where('appointment.doctorId = :doctorId', { doctorId })
+      .andWhere('appointment.status = :status', {
+        status: AppointmentStatus.COMPLETED
+      })
+      .andWhere('transaction.status = :transactionStatus', {
+        transactionStatus: PaymentStatus.SETTLEMENT
+      });
+
+    if (search) {
+      query.andWhere('patientUser.name ILIKE :search', {
+        search: `%${search}%`
+      });
+    }
+
+    if (startDate && endDate) {
+      query.andWhere('appointment.completed_at BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate
+      });
+    }
+
+    query.orderBy('appointment.completed_at', 'DESC')
+      .skip(offset)
+      .take(limit);
+
+    const [transactions, total] = await query.getManyAndCount();
+
+    // Calculate monthly total for doctor
+    const currentDate = new Date();
+    const firstDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const lastDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
+
+    const monthlyTotal = await this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoin('appointment.transaction', 'transaction')
+      .where('appointment.doctorId = :doctorId', { doctorId })
+      .andWhere('appointment.status = :status', {
+        status: AppointmentStatus.COMPLETED
+      })
+      .andWhere('transaction.status = :transactionStatus', {
+        transactionStatus: PaymentStatus.SETTLEMENT
+      })
+      .andWhere('appointment.completed_at BETWEEN :startDate AND :endDate', {
+        startDate: firstDayOfMonth,
+        endDate: lastDayOfMonth
+      })
+      .select('SUM(transaction.doctorFee)', 'monthlyDoctorTotal')
+      .getRawOne();
+
+    // Transform photo URLs
+    const baseUrl = this.configService.get('app.baseUrl');
+    const transformedTransactions = transactions.map(transaction => ({
+      id: transaction.id,
+      completedAt: transaction.completed_at,
+      schedule: transaction.schedule,
+      patient: {
+        ...transaction.patient,
+        user: {
+          name: transaction.patient.user.name,
+          photo_profile: transaction.patient.user.photo_profile
+            ? `${baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
+            : null
+        }
+      },
+      transaction: {
+        amount: transaction.transaction.amount,
+        doctorFee: transaction.transaction.doctorFee
+      }
+    }));
+
+    return {
+      data: transformedTransactions,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      },
+      monthlyDoctorTotal: monthlyTotal.monthlyDoctorTotal || 0
+    };
+  }
 }

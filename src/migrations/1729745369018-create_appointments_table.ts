@@ -14,7 +14,8 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                 'PAID', 
                 'IN_PROGRESS', 
                 'COMPLETED',
-                'CANCELLED'
+                'CANCELLED',
+                'AWAITING_JOIN_LINK'
             );
         `);
         await queryRunner.createTable(
@@ -61,6 +62,16 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         default: "'PENDING'::appointment_status_enum"
                     },
                     {
+                        name: "diagnosis",
+                        type: "varchar",
+                        isNullable: true
+                    },
+                    {
+                        name: "note",
+                        type: "varchar",
+                        isNullable: true
+                    },
+                    {
                         name: "rejection_reason",
                         type: "varchar",
                         isNullable: true
@@ -80,7 +91,6 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         type: "timestamp",
                         isNullable: true
                     },
-
                     
                     {
                         name: "reschedule_count",
@@ -101,17 +111,26 @@ export class CreateAppointmentsTable1729745369018 implements MigrationInterface 
                         name: 'patient_joint_time',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',
+                        isNullable: true
                     },
                     {
                         name: 'doctor_join_time',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',
+                        isNullable: true
+                    },
+                    {
+                        name: 'started_at',
+                        type: 'timestamp',
+                        default: 'CURRENT_TIMESTAMP',
+                        isNullable: true
                     },
 
                     {
                         name: 'completed_at',
                         type: 'timestamp',
                         default: 'CURRENT_TIMESTAMP',
+                        isNullable: true
                     },
                     {
                         name: 'created_at',

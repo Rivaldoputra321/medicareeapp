@@ -95,9 +95,30 @@ export class EmailTemplateService {
     `;
   }
 
-  // Add these methods to your EmailTemplateService class
 
-// Add these new methods to your EmailTemplateService class
+  getDiagnosisReminderTemplate(appointment: Appointment): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Action Required: Complete Patient Diagnosis</h2>
+        <p>Dear Dr. ${appointment.doctor.user.name},</p>
+        <p>This is a reminder that you need to complete the diagnosis and medical notes for your ongoing consultation:</p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+          <p>Appointment Details:</p>
+          <ul>
+            <li>Patient: ${appointment.patient.user.name}</li>
+            <li>Date: ${new Date(appointment.schedule).toLocaleDateString()}</li>
+            <li>Time: ${new Date(appointment.schedule).toLocaleTimeString()}</li>
+            <li>Session Started: ${new Date(appointment.started_at).toLocaleString()}</li>
+          </ul>
+        </div>
+        <p style="color: #ff0000;"><strong>Important:</strong> Please complete the diagnosis and medical notes as soon as possible to finalize the consultation.</p>
+        <p>You can provide the diagnosis and notes through your dashboard:</p>
+        <a href="http://localhost:3000/doctor/appointments" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">
+          Complete Diagnosis
+        </a>
+      </div>
+    `;
+  }
 
 getAppointmentCancellationTemplate(appointment: Appointment, reason: string): string {
   return `
