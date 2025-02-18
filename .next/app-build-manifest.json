@@ -11,40 +11,35 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(public)/doctors/[spesialistId]/page": [
+    "/(public)/payacc/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/doctors/[spesialistId]/page.js"
+      "static/chunks/app/(public)/payacc/page.js"
     ],
     "/(auth)/signin/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(auth)/signin/page.js"
     ],
-    "/(public)/doctors/doctor/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/doctors/doctor/[id]/page.js"
-    ],
-    "/(public)/payacc/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(public)/payacc/page.js"
-    ],
     "/(protected)/dashboard/doctor/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(protected)/dashboard/doctor/page.js"
     ],
-    "/(public)/payment/[transactionId]/page": [
+    "/(protected)/dashboard/doctor/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(public)/payment/[transactionId]/page.js"
+      "static/chunks/app/(protected)/dashboard/doctor/layout.js"
     ],
-    "/_not-found/page": [
+    "/(public)/doctors/[spesialistId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/(public)/doctors/[spesialistId]/page.js"
+    ],
+    "/(public)/doctors/doctor/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(public)/doctors/doctor/[id]/page.js"
     ]
   }
 }

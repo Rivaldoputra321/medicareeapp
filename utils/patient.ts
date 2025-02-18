@@ -2,20 +2,22 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 
 export interface Patient {
-  id: string;
-  date_of_birth: Date;
-  gender: string;
-  telp: string;
-  deleted_at: string | null;
-  user: {
+  patient: {
     id: string;
-    name: string;
-    email: string;
-    photo_profile: string | null;
-    status: number;
-  };
+    date_of_birth: string;
+    gender: string;
+    height: number | null;
+    weight: number | null;
+    deleted_at: string | null;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      photo_profile: string | null;
+      status: number;
+    };
+  }
 }
-
 export interface PatientResponse {
   data: Patient[];
   total: number;
@@ -64,9 +66,9 @@ export const fetchPatients = async (
   }
 };
 
-export const fetchPatientId = async (id: string): Promise<Patient> => {
+export const fetchPatientId = async (userId: string): Promise<Patient> => {
   try {
-    const response = await api.get<Patient>(`/patient/by/${id}`);
+    const response = await api.get<Patient>(`/patient/by/${userId}`);
     if (!response.data) {
       throw new Error('Patient data not found');
     }

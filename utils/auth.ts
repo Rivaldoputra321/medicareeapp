@@ -4,6 +4,7 @@ export interface TokenPayload {
   sub: string;
   email: string;
   roleId: string;
+  photo_profile?: string | '';
   name: string;
   iat: number;
   exp: number;
@@ -16,7 +17,7 @@ export interface AuthResponse {
 
 export interface User {
   id: string;
-  photo_profile: string;
+  photo_profile?: string | '';
   name: string;
   email: string;
   roleId: string;
@@ -30,9 +31,9 @@ export interface LoginResponse {
 }
 
 export const roleMap: Record<string, string> = {
-  '77bf765d-4a63-4b15-b415-ebc32fd673d3': 'patient',
-  '776ad594-ee63-4172-bd86-46372e9cabbd': 'doctor',
-  '54a03d4d-719c-4ea8-8235-a2ff1aeedae0': 'admin',
+  '0adae9e2-92e1-4317-a531-6d5a4ea8a244': 'patient',
+  'c3b9adcb-5e97-44f8-a06c-7ed0373702dd': 'admin',
+  '6c100448-ec63-4577-a94f-9a22cc42abc3': 'doctor',
 };
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
@@ -105,7 +106,7 @@ export function getCurrentUser(): User | null {
       email: decoded.email,
       name: decoded.name,
       roleId: decoded.roleId,
-      photo_profile: '',
+      photo_profile: decoded.photo_profile, // Fallback jika photo_profile tidak tersedia
       user_type: roleMap[decoded.roleId] || 'unknown',
     };
   } catch (error) {

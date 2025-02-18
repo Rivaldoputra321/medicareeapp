@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react';
-
 import { Form, Input, InputNumber, Upload, Button, Select, message, Spin, Card } from 'antd';
 import { UploadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { createDoctor } from '@/utils/doctor';
@@ -34,7 +33,8 @@ const CreateDoctorPage = () => {
 const CreateDoctorForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [fileList, setFileList] = useState<any[]>([]);
+  const [photoFileList, setPhotoFileList] = useState<any[]>([]);
+  const [strFileList, setStrFileList] = useState<any[]>([]);
   const [specialists, setSpecialists] = useState<Spesialist[]>([]);
   const [loadingSpecialists, setLoadingSpecialists] = useState(true);
 
@@ -59,20 +59,28 @@ const CreateDoctorForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) =>
       setLoading(true);
       const formData = new FormData();
       
+      // Append all non-file fields
       Object.keys(values).forEach(key => {
-        if (key !== 'photo_profile') {
+        if (key !== 'photo_profile' && key !== 'file_str') {
           formData.append(key, values[key]);
         }
       });
 
-      if (fileList[0]) {
-        formData.append('photo_profile', fileList[0].originFileObj);
+      // Append photo_profile if exists
+      if (photoFileList[0]) {
+        formData.append('photo_profile', photoFileList[0].originFileObj);
+      }
+
+      // Append file_str if exists
+      if (strFileList[0]) {
+        formData.append('file_str', strFileList[0].originFileObj);
       }
 
       await createDoctor(formData);
       message.success('Doctor created successfully');
       form.resetFields();
-      setFileList([]);
+      setPhotoFileList([]);
+      setStrFileList([]);
       onSuccess();
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Failed to create doctor');
@@ -187,18 +195,36 @@ const CreateDoctorForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) =>
       >
         <Upload
           beforeUpload={() => false}
-          fileList={fileList}
-          onChange={({ fileList }) => setFileList(fileList)}
+          fileList={photoFileList}
+          onChange={({ fileList }) => setPhotoFileList(fileList)}
           maxCount={1}
           accept="image/*"
           listType="picture-card"
         >
-          {fileList.length === 0 && (
+          {photoFileList.length === 0 && (
             <div>
               <UploadOutlined className="text-xl" />
               <div className="mt-2">Upload Photo</div>
             </div>
           )}
+        </Upload>
+      </Form.Item>
+
+      <Form.Item
+        label="File STR"
+        name="file_str"
+        rules={[{ required: true, message: 'Please upload a file' }]}
+        className="mt-4"
+      >
+        <Upload
+          beforeUpload={() => false}
+          fileList={strFileList}
+          onChange={({ fileList }) => setStrFileList(fileList)}
+          maxCount={1}
+          accept=".pdf"
+          listType="text"
+        >
+          <Button icon={<UploadOutlined />}>Upload STR File</Button>
         </Upload>
       </Form.Item>
 

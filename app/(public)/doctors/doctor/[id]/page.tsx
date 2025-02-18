@@ -21,7 +21,7 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
 
   const today = moment();
-  const maxDate = moment().add(7, 'days');
+  const maxDate = moment().add(30, 'days');
 
   useEffect(() => {
     const loadDoctor = async () => {
@@ -77,7 +77,7 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
         timerProgressBar: true
       });
       
-      router.push('/riwayat');
+      router.push('/payacc');
     } catch (error) {
       const err = error as AxiosError<any>;
       const statusCode = err.response?.status;
@@ -197,16 +197,16 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
                   showTime={{
                     format: 'HH:mm',
                     minuteStep: 1,
-                    hideDisabledOptions: true,
+                    hideDisabledOptions: false,
                     disabledHours: () => [
-                      ...Array.from({ length: 8 }, (_, i) => i),
-                      ...Array.from({ length: 8 }, (_, i) => i + 24)
+                      ...Array.from({ length: 0 }, (_, i) => i),
+                      ...Array.from({ length: 0}, (_, i) => i + 23)
                     ]
                   }}
                   disabledDate={(current) => {
                     const isOutOfRange = current < moment().startOf('day') || current > maxDate;
-                    const isWeekend = current.day() === 0 || current.day() === 6;
-                    return isOutOfRange || isWeekend;
+
+                    return isOutOfRange ;
                   }}
                   onChange={handleDateChange}
                 />
@@ -217,9 +217,9 @@ export default function DoctorDetail({ params }: { params: { id: string } }) {
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Informasi Jadwal:</h4>
                   <div className="space-y-2">
                     <p className="text-sm text-gray-600">• Jadwal praktik Senin - Jumat</p>
-                    <p className="text-sm text-gray-600">• ,Jam praktik: 08:00 - 17:00</p>
+                    <p className="text-sm text-gray-600">• Jam praktik: 08:00 - 16:00</p>
                     <p className="text-sm text-gray-600">• Sabtu & Minggu: Tutup</p>
-                    <p className="text-sm text-gray-600">• Pemilihan jadwal maksimal 7 hari ke depan</p>
+                    <p className="text-sm text-gray-600">• Pemilihan jadwal maksimal 30 hari ke depan</p>
                   </div>
                 </div>
               </div>

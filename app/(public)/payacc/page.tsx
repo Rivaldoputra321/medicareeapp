@@ -5,8 +5,16 @@ import Image from 'next/image';
 import moment from 'moment';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/component/navbar';
-import { Appointment, getAppointmentsByStatus, AppointmentStatus } from '@/utils/appointment';
-import { Spin } from 'antd';
+
+import { 
+  Appointment, 
+  getAppointmentsByStatus, 
+  AppointmentStatus, 
+  recordPresence,
+  rescheduleAppointment, 
+  RescheduleAppointmentDto
+} from '@/utils/appointment';
+import { Spin, Modal, DatePicker, message } from 'antd';
 
 const AppointmentHistory = () => {
   const router = useRouter();
@@ -16,6 +24,13 @@ const AppointmentHistory = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [newSchedule, setNewSchedule] = useState<{ date: string; time: string } | null>(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false)
+
+  const maxDate = moment().add(30, 'days');
 
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -32,7 +47,7 @@ const AppointmentHistory = () => {
         setHasMore(response.meta.page < response.meta.totalPages);
       } catch (err) {
         if (err instanceof Error) {
-          if (err.message.includes('401')) {
+          if (err.message.includes('unauthorized')) {
             router.push('/signin');
             return;
           }
@@ -54,6 +69,15 @@ const AppointmentHistory = () => {
   const loadMore = () => {
     if (!loading && hasMore) {
       setPage(prev => prev + 1);
+    }
+  };
+  
+  const handleDateChange = (date: moment.Moment | null) => {
+    if (date) {
+      setNewSchedule({
+        date: date.format('YYYY-MM-DD'),
+        time: date.format('HH:mm')
+      });
     }
   };
 
@@ -103,6 +127,11 @@ const AppointmentHistory = () => {
         bg: 'bg-yellow-100',
         text: 'text-yellow-800',
         border: 'border-yellow-200'
+      },
+      [AppointmentStatus.AWAITING_JOIN_MEETING]: {
+        bg: 'bg-yellow-100',
+        text: 'text-yellow-900',
+        border: 'border-yellow-300'
       }
     };
 
@@ -119,14 +148,84 @@ const AppointmentHistory = () => {
       [AppointmentStatus.COMPLETED]: 'Selesai',
       [AppointmentStatus.CANCELLED]: 'Dibatalkan',
       [AppointmentStatus.REJECTED]: 'Ditolak',
+      [AppointmentStatus.AWAITING_JOIN_MEETING]: 'Silahkan Join Meeting',
       [AppointmentStatus.RESCHEDULED]: 'Perlu Reschedule'
     };
     return text[status] || status;
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert('Meeting link copied to clipboard!');
+  const handleReschedule = async () => {
+    if (!selectedAppointment || !newSchedule) {
+      message.error('Silakan pilih jadwal baru');
+      return;
+    }
+  
+    try {
+      setRescheduleLoading(true);
+      const updateData: RescheduleAppointmentDto = {
+        reschedule: moment(`${newSchedule.date} ${newSchedule.time}`).toISOString()
+      };
+      
+      await rescheduleAppointment(selectedAppointment.id, updateData);
+      
+      message.success('Jadwal berhasil diubah');
+      setIsRescheduleModalOpen(false);
+      
+      // Refresh appointments
+      const response = await getAppointmentsByStatus(activeTab, 1);
+      setAppointments(response.data);
+      setPage(1);
+    } catch (err) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    } finally {
+      setRescheduleLoading(false);
+      setSelectedAppointment(null);
+      setNewSchedule(null);
+    }
+  };
+  
+  const handleJoinMeeting = async (appointmentId: string, meetingLink: string) => {
+    try {
+      await recordPresence(appointmentId);
+      window.open(meetingLink, '_blank');
+    } catch (err) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    }
+  };
+  
+  const handlePayment = (appointment: Appointment) => {
+    if (!appointment.transaction) {
+      message.error('Transaction not found');
+      return;
+    }
+  
+    const paymentUrl = appointment.transaction.payment_link;
+    
+    if (!paymentUrl) {
+      message.error('Payment link not found');
+      return;
+    }
+  
+    window.location.href = paymentUrl;
+  };
+
+  const openRescheduleModal = (appointment: Appointment) => {
+    if (appointment.reschedule_count >= 3) {
+      message.error('Anda telah mencapai batas maksimal pengajuan reschedule');
+      return;
+    }
+    setSelectedAppointment(appointment);
+    setIsRescheduleModalOpen(true);
+  };
+
+  const shouldShowJoinButton = (schedule: Date) => {
+    const now = moment();
+    const appointmentTime = moment(schedule);
+    return appointmentTime.diff(now, 'minutes') <= 5 && appointmentTime.diff(now, 'minutes') >= -30;
   };
 
   return (
@@ -162,14 +261,19 @@ const AppointmentHistory = () => {
           </div>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="p-4 mb-6 text-red-800 bg-red-100 border border-red-200 rounded-lg" role="alert">
+            <div className="flex items-center">
+              <span className="font-medium">{error}</span>
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
         {loading && page === 1 ? (
           <div className="flex justify-center items-center py-12">
             <Spin size="large" />
-          </div>
-        ) : error ? (
-          <div className="text-center py-12">
-            <div className="text-red-600">{error}</div>
           </div>
         ) : appointments.length === 0 ? (
           <div className="text-center py-12">
@@ -179,11 +283,13 @@ const AppointmentHistory = () => {
           <div className="space-y-6">
             {appointments.map((appointment) => {
               const statusStyle = getStatusStyle(appointment.status);
+              const canReschedule = appointment.status === AppointmentStatus.REJECTED && 
+                                  appointment.reschedule_count < 3;
               
               return (
                 <div
                   key={appointment.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-shadow hover:shadow-md"
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <div className="p-6">
                     {/* Header */}
@@ -194,9 +300,8 @@ const AppointmentHistory = () => {
                             <Image
                               src={appointment.doctor.user.photo_profile}
                               alt={appointment.doctor.user.name}
-                              layout="fill"
-                              objectFit="cover"
-                              className="rounded-full"
+                              fill
+                              className="object-cover rounded-full"
                             />
                           )}
                         </div>
@@ -210,7 +315,7 @@ const AppointmentHistory = () => {
                         </div>
                       </div>
                       <span
-                        className={`px-4 py-2 rounded-full text-sm font-medium ${statusStyle.bg} ${statusStyle.text}`}
+                        className={`px-4 py-2 rounded-full text-sm font-medium ${statusStyle?.bg} ${statusStyle?.text}`}
                       >
                         {getStatusText(appointment.status)}
                       </span>
@@ -218,7 +323,6 @@ const AppointmentHistory = () => {
 
                     {/* Content */}
                     <div className="border-t border-gray-100 pt-4">
-                      {/* Price Info */}
                       <div className="flex justify-between items-center mb-4">
                         <span className="text-sm text-gray-600">Biaya Konsultasi</span>
                         <span className="font-semibold text-gray-900">
@@ -226,46 +330,53 @@ const AppointmentHistory = () => {
                         </span>
                       </div>
 
-                      {appointment.status === AppointmentStatus.AWAITING_PAYMENT && (
-                            <div className="mb-4">
-                            <button
-                                onClick={() => router.push(`/payment/${appointment.transaction?.id}`)}
-                                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                            >
-                                Bayar Sekarang
-                            </button>
-                            </div>
+                      {/* Action Buttons */}
+                      <div className="space-y-4">
+                        {appointment.status === AppointmentStatus.AWAITING_PAYMENT && (
+                         <button
+                         onClick={() => handlePayment(appointment)}
+                        className="w-full inline-flex justify-center items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                       >
+                         {paymentLoading ? (
+                           <>
+                             <Spin className="mr-2" />
+                             Redirecting...
+                           </>
+                         ) : (
+                           'Bayar Sekarang'
+                         )}
+                       </button>
                         )}
 
-                      {/* Meeting Link */}
-                      {appointment.meeting_link && (
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Link Google Meet
-                          </label>
-                          <a
-                            href={appointment.meeting_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        {appointment.status === AppointmentStatus.AWAITING_JOIN_MEETING && shouldShowJoinButton(appointment.schedule) && (
+                          <button
+                            onClick={() => handleJoinMeeting(appointment.id, appointment.meeting_link || '')}
+                            className="w-full inline-flex justify-center items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                           >
                             Join Meeting
-                          </a>
-                        </div>
-                      )}
+                          </button>
+                        )}
+                      </div>
 
-
-                      {/* Rejection Reason */}
+                      {/* Rejection Info */}
                       {appointment.rejection_reason && (
-                        <div className="mt-4 p-4 bg-red-50 rounded-lg">
-                          <h4 className="text-sm font-medium text-red-800 mb-1">
-                            Alasan Penolakan:
-                          </h4>
-                          <p className="text-sm text-red-600">
-                            {appointment.rejection_reason}
-                          </p>
-                        </div>
-                      )}
+                          <div className="mt-4 p-4 bg-red-50 rounded-lg">
+                            <h4 className="text-sm font-medium text-red-800 mb-1">
+                              Alasan Penolakan:
+                            </h4>
+                            <p className="text-sm text-red-600 mb-3">
+                              {appointment.rejection_reason}
+                            </p>
+                            {canReschedule && (
+                              <button
+                                onClick={() => openRescheduleModal(appointment)}
+                                className="w-full inline-flex justify-center items-center px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                              >
+                                Ajukan Reschedule ({3 - appointment.reschedule_count} kesempatan tersisa)
+                              </button>
+                            )}
+                          </div>
+                        )}
 
                       {/* Reschedule Info */}
                       {appointment.status === AppointmentStatus.RESCHEDULED && (
@@ -290,7 +401,7 @@ const AppointmentHistory = () => {
             {/* Load More Button */}
             {hasMore && (
               <div className="mt-6 text-center">
-                <button
+                <button 
                   onClick={loadMore}
                   disabled={loading}
                   className={`
@@ -301,17 +412,86 @@ const AppointmentHistory = () => {
                   `}
                 >
                   {loading ? (
-                    <span className="flex items-center">
-                      <Spin size="small" className="mr-2" /> Loading...
-                    </span>
+                    <>
+                      <Spin className="mr-2" /> 
+                      Memuat...
+                    </>
                   ) : (
-                    'Load More'
+                    'Muat Lebih Banyak'
                   )}
                 </button>
               </div>
             )}
           </div>
         )}
+
+        {/* Reschedule Modal */}
+        <Modal
+          title="Atur Ulang Jadwal"
+          open={isRescheduleModalOpen}
+          onCancel={() => {
+            setIsRescheduleModalOpen(false);
+            setSelectedAppointment(null);
+            setNewSchedule(null);
+          }}
+          footer={[
+            <button
+              key="cancel"
+              onClick={() => {
+                setIsRescheduleModalOpen(false);
+                setSelectedAppointment(null);
+                setNewSchedule(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Batal
+            </button>,
+            <button
+              key="submit"
+              onClick={handleReschedule}
+              disabled={rescheduleLoading || !newSchedule}
+              className={`
+                ml-3 px-4 py-2 text-sm font-medium text-white rounded-md
+                ${rescheduleLoading || !newSchedule 
+                  ? 'bg-green-400 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+                }
+              `}
+            >
+              {rescheduleLoading ? (
+                <>
+                  <Spin className="mr-2" />
+                  Menyimpan...
+                </>
+              ) : (
+                'Simpan'
+              )}
+            </button>
+          ]}
+        >
+          <div className="mt-4">
+            <DatePicker 
+              className="w-full border border-gray-300 rounded-lg shadow-sm p-2"
+              placeholder="Pilih tanggal dan waktu"
+              format="DD MMMM YYYY HH:mm"
+              showTime={{
+                format: 'HH:mm',
+                minuteStep: 30,
+                hideDisabledOptions: true,
+                disabledHours: () => [
+                  ...Array.from({ length: 8 }, (_, i) => i),
+                  ...Array.from({ length: 8 }, (_, i) => i + 16)
+                ]
+              }}
+              disabledDate={(current) => {
+                const isOutOfRange = current < moment().startOf('day') || current > maxDate;
+                const isWeekend = current.day() === 0 || current.day() === 6;
+                return isOutOfRange || isWeekend;
+              }}
+              onChange={handleDateChange}
+            />
+          </div>
+        </Modal>
       </div>
     </div>
   );

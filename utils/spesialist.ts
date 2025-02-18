@@ -80,7 +80,7 @@ export const createSpesialist = async (formData: FormData): Promise<Spesialist> 
 
 export const updateSpesialist = async (id: string, formData: FormData): Promise<Spesialist> => {
   try {
-    const response = await api.put(`/spesialist/update/${id}`, formData, {
+    const response = await api.patch(`/spesialist/update/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

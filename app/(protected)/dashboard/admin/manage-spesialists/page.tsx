@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Layout, Menu, Button, Typography, Row, Col, Popconfirm, Table, Badge, Input, message, Select, Tabs } from 'antd';
-import { UserAddOutlined, AppstoreAddOutlined, LogoutOutlined, DeleteOutlined, PlusCircleOutlined, SearchOutlined, UndoOutlined } from '@ant-design/icons';
+import { Layout, Button, Typography, Row, Col, Popconfirm, Table, Input, message, Select, Tabs } from 'antd';
+import { DeleteOutlined, PlusCircleOutlined, SearchOutlined, UndoOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-import { deleteDoctor, restoreDoctor, fetchDoctors, fetchDoctorId, type Doctor, type DoctorResponse, fetchDeletedDoctors } from '@/utils/doctor';
 import debounce from 'lodash/debounce';
-import { deleteSpesialist, fetchAdminSpesialists, fetchDeletedSpesialists, fetchSpesialistById, fetchSpesialists, restoreSpesialist, Spesialist } from '@/utils/spesialist';
+import { deleteSpesialist, fetchAdminSpesialists, fetchDeletedSpesialists, fetchSpesialistById, restoreSpesialist, Spesialist } from '@/utils/spesialist';
 import AdminLayout from '../../../../component/adminComponent/admin.layout.component';
 
 const { Header, Content, Sider } = Layout;
@@ -186,7 +185,7 @@ const AdminSpesialistPage = () => {
       await fetchSpesialistById(id);
       router.push(`/dashboard/admin/manage-spesialists/form_edit_spesialist/${id}`);
     } catch (error) {
-      message.error('Failed to access doctor details');
+      message.error('Failed to access specialist details');
     } finally {
       setActionLoading(prev => ({ ...prev, [`edit-${id}`]: false }));
     }
@@ -265,7 +264,7 @@ const AdminSpesialistPage = () => {
             <div className="bg-white p-8 rounded-lg shadow-sm">
               <div className="mb-6 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-semibold text-gray-800">Doctors Data</h2>
+                  <h2 className="text-2xl font-semibold text-gray-800">Specialists Data</h2>
                   <Link href="/dashboard/admin/manage-spesialists/form_create_spesialist">
                     <Button
                       type="primary"

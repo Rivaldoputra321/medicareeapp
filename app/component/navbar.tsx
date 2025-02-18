@@ -55,7 +55,7 @@ export default function Navbar() {
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden">
                                         <Image
-                                            src={user.photo_profile || defaultProfilePic}
+                                            src={user?.photo_profile || defaultProfilePic}
                                             alt="Profile"
                                             width={40}
                                             height={40}
@@ -70,12 +70,7 @@ export default function Navbar() {
 
                                 {isDropdownOpen && (
                                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                        <Link 
-                                            href="/patient/profile" 
-                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                        >
-                                            Profile
-                                        </Link>
+                                        <a href="/patient/profile">Profile</a>
                                         <button
                                             onClick={handleLogout}
                                             className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"

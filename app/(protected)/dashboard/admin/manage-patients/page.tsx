@@ -101,7 +101,7 @@ const AdminPatientPage = () => {
       render: (text: string, record: Patient) => (
         <div className="flex items-center space-x-3">
           <img
-            src={record.user.photo_profile || defaultProfilePic.src}
+            src={record?.patient?.user?.photo_profile || defaultProfilePic.src}
             alt={text}
             className="w-8 h-8 rounded-full object-cover"
           />

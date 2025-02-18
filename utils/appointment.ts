@@ -1,13 +1,13 @@
-// src/services/appointment.ts
 import axios from 'axios';
 import { api } from './api';
 
-// Enums
+// Enums that match backend
 export enum AppointmentStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   AWAITING_PAYMENT = 'AWAITING_PAYMENT',
   PAID = 'PAID',
+  AWAITING_JOIN_MEETING = 'AWAITING_JOIN_LINK',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
@@ -25,9 +25,10 @@ export enum PaymentStatus {
   REFUND = 'REFUND'
 }
 
-// Interfaces
+// Updated interfaces to match backend entities
 export interface Transaction {
   id: string;
+  payment_link : string;
   appointment_id: string;
   amount: number;
   adminFee: number;
@@ -67,6 +68,12 @@ export interface Appointment {
   meeting_link_expired?: Date;
   is_doctor_present: boolean;
   is_patient_present: boolean;
+  doctor_join_time?: Date;
+  patient_join_time?: Date;
+  started_at?: Date;
+  completed_at?: Date;
+  diagnosis?: string;  // Add diagnosis field
+  note?: string;  
   reschedule_count: number;
   rejection_reason?: string;
   created_at: Date;
@@ -75,17 +82,26 @@ export interface Appointment {
   patient?: Patient;
 }
 
-// DTOs
+// DTOs matching backend
 export interface CreateAppointmentDto {
   doctorId: string;
-  schedule: string;
+  schedule: string; // ISO date string
 }
 
 export interface UpdateAppointmentStatusDto {
   action: 'approve' | 'reject';
   rejectionReason?: string;
-  reschedule?: Date;
 }
+
+export interface RescheduleAppointmentDto {
+  reschedule?: string;
+}
+
+export interface CompleteAppointmentDto {
+  diagnosis: string;
+  note: string;
+}
+
 
 export interface SetMeetingLinkDto {
   meetingLink: string;
@@ -101,7 +117,7 @@ export interface PaginatedResponse<T> {
   };
 }
 
-// API Functions
+// API Functions with proper error handling
 export const createAppointment = async (appointmentData: CreateAppointmentDto): Promise<Appointment> => {
   try {
     const response = await api.post<Appointment>('/appointments', appointmentData);
@@ -132,9 +148,27 @@ export const updateAppointmentStatus = async (
   }
 };
 
+export const setDiagnosis = async (
+  appointmentId: string,
+  diagnosisData: CompleteAppointmentDto
+): Promise<Appointment> => {
+  try {
+    const response = await api.patch<Appointment>(
+      `/appointments/diagnosis/${appointmentId}`,
+      diagnosisData
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to set diagnosis and complete appointment');
+    }
+    throw error;
+  }
+};
+
 export const rescheduleAppointment = async (
   appointmentId: string,
-  updateData: UpdateAppointmentStatusDto
+  updateData: RescheduleAppointmentDto
 ): Promise<Appointment> => {
   try {
     const response = await api.put<Appointment>(
@@ -196,6 +230,7 @@ export const getAppointmentsByStatus = async (
     );
     return response.data;
   } catch (error) {
+    console.log('error')
     if (axios.isAxiosError(error)) {
       throw new Error(error.response?.data?.message || 'Failed to fetch appointments');
     }

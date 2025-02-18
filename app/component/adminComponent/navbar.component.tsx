@@ -41,7 +41,7 @@ const Navbar = () => {
             <div className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
               <div className="w-8 h-8 rounded-full overflow-hidden">
                 <Image
-                  src={user?.photo_profile || defaultProfilePic}
+                  src={ defaultProfilePic}
                   alt="Admin Profile"
                   width={32}
                   height={32}

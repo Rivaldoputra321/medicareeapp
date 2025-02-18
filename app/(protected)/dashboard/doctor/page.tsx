@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Table, Tag, Modal, Input, DatePicker, message, Spin } from 'antd';
+import { Card, Button, Table, Tag, Modal, Input, DatePicker, message, Spin, Tooltip } from 'antd';
 import moment from 'moment';
 import DoctorLayout from '@/app/component/doctorComponent/doctor.layout';
 import { 
@@ -9,7 +9,10 @@ import {
   getAppointmentsByStatus, 
   updateAppointmentStatus, 
   setMeetingLink,
-  AppointmentStatus 
+  AppointmentStatus, 
+  recordPresence,
+  CompleteAppointmentDto,
+  setDiagnosis
 } from '@/utils/appointment';
 
 const { TextArea } = Input;
@@ -17,7 +20,7 @@ const { TextArea } = Input;
 interface ModalState {
   visible: boolean;
   appointmentId: string | null;
-  type: 'meetingLink' | 'reject'  | null;
+  type: 'meetingLink' | 'reject' | 'diagnosis' | null;
 }
 
 const DoctorDashboard = () => {
@@ -35,7 +38,12 @@ const DoctorDashboard = () => {
   const [newSchedule, setNewSchedule] = useState<moment.Moment | null>(null);
   const [newMeetingLink, setNewMeetingLink] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [diagnosisForm, setDiagnosisForm] = useState<CompleteAppointmentDto>({
+    diagnosis: '',
+    note: ''
+  });
   const pageSize = 10;
+
 
   const loadAppointments = async (currentPage: number) => {
     try {
@@ -52,7 +60,13 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     loadAppointments(page);
+    // Refresh appointments every minute to update meeting availability
+    const interval = setInterval(() => {
+      loadAppointments(page);
+    }, 60000);
+    return () => clearInterval(interval);
   }, [activeTab, page]);
+
 
   const handleModalOpen = (appointmentId: string, type: ModalState['type']) => {
     setModal({ visible: true, appointmentId, type });
@@ -85,6 +99,51 @@ const DoctorDashboard = () => {
     }
   };
 
+  const handleJoinMeeting = async (appointmentId: string, meetingLink: string) => {
+    try {
+      await recordPresence(appointmentId);
+      window.open(meetingLink, '_blank');
+      message.success('Presence recorded successfully');
+    } catch (error) {
+      message.error('Failed to record presence');
+    }
+  };
+
+ 
+  const checkTimeValidity = (schedule: Date) => {
+    const appointmentTime = new Date(schedule).getTime();
+    const now = new Date().getTime();
+    const diffInMinutes = (appointmentTime - now) / (1000 * 60);
+    
+    console.log('Time check:', {
+      appointmentTime,
+      now,
+      diffInMinutes,
+      schedule,
+      currentTime: new Date(),
+      scheduleFormatted: moment(schedule).format('YYYY-MM-DD HH:mm:ss'),
+      currentFormatted: moment().format('YYYY-MM-DD HH:mm:ss')
+    });
+
+    return diffInMinutes;
+  };
+
+
+  const getRemainingTime = (schedule: Date): string => {
+    const diffInMinutes = checkTimeValidity(schedule);
+    
+    if (diffInMinutes > 10) {
+      return `Meeting starts in ${Math.floor(diffInMinutes / 60)}h ${Math.floor(diffInMinutes % 60)}m`;
+    } else if (diffInMinutes > 0) {
+      return `Meeting starts in ${Math.floor(diffInMinutes)}m`;
+    } else if (diffInMinutes >= -60) {
+      return `Meeting started ${Math.abs(Math.floor(diffInMinutes))}m ago`;
+    } else {
+      return 'Meeting ended';
+    }
+  };
+
+
 
   const handleSetMeetingLink = async () => {
     if (!modal.appointmentId || !newMeetingLink) return;
@@ -112,10 +171,123 @@ const DoctorDashboard = () => {
       [AppointmentStatus.COMPLETED]: 'success',
       [AppointmentStatus.CANCELLED]: 'default',
       [AppointmentStatus.REJECTED]: 'error',
+      [AppointmentStatus.AWAITING_JOIN_MEETING] : 'yellow',
       [AppointmentStatus.RESCHEDULED]: 'orange'
     };
 
     return <Tag color={colors[status]}>{status}</Tag>;
+  };
+
+  const handleSetDiagnosis = async () => {
+    if (!modal.appointmentId) return;
+
+    try {
+      setActionLoading(true);
+      await setDiagnosis(modal.appointmentId, diagnosisForm);
+      message.success('Diagnosis set successfully');
+      handleModalClose();
+      loadAppointments(page);
+    } catch (error) {
+      message.error('Failed to set diagnosis');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const canSetDiagnosis = (appointment: Appointment): boolean => {
+    if (appointment.status !== AppointmentStatus.IN_PROGRESS || !appointment.started_at) {
+      return false;
+    }
+    
+    const startTime = new Date(appointment.started_at).getTime();
+    const now = new Date().getTime();
+    const diffInMinutes = (now - startTime) / (1000 * 60);
+    
+    return diffInMinutes >= 0;
+  };
+
+  const handleModalSubmit = () => {
+    if (!modal.appointmentId) return;
+
+    switch (modal.type) {
+      case 'meetingLink':
+        handleSetMeetingLink();
+        break;
+      case 'reject':
+        handleUpdateStatus(modal.appointmentId, 'reject');
+        break;
+      case 'diagnosis':
+        handleSetDiagnosis();
+        break;
+    }
+  };
+
+  const renderModalContent = () => {
+    switch (modal.type) {
+      case 'meetingLink':
+        return (
+          <Input
+            placeholder="Enter Google Meet link"
+            value={newMeetingLink}
+            onChange={(e) => setNewMeetingLink(e.target.value)}
+            className="w-full"
+          />
+        );
+      case 'reject':
+        return (
+          <TextArea
+            placeholder="Enter rejection reason"
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            rows={4}
+            className="w-full"
+          />
+        );
+      case 'diagnosis':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Diagnosis
+              </label>
+              <TextArea
+                placeholder="Enter diagnosis"
+                value={diagnosisForm.diagnosis}
+                onChange={(e) => setDiagnosisForm(prev => ({ ...prev, diagnosis: e.target.value }))}
+                rows={4}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notes
+              </label>
+              <TextArea
+                placeholder="Enter additional notes"
+                value={diagnosisForm.note}
+                onChange={(e) => setDiagnosisForm(prev => ({ ...prev, note: e.target.value }))}
+                rows={4}
+                className="w-full"
+              />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (modal.type) {
+      case 'meetingLink':
+        return 'Set Meeting Link';
+      case 'reject':
+        return 'Rejection Reason';
+      case 'diagnosis':
+        return 'Set Diagnosis and Notes';
+      default:
+        return '';
+    }
   };
 
   const columns = [
@@ -131,10 +303,15 @@ const DoctorDashboard = () => {
       title: 'Schedule',
       dataIndex: 'schedule',
       key: 'schedule',
-      render: (schedule: string) => (
-        <span className="text-gray-600">
-          {moment(schedule).format('DD MMM YYYY HH:mm')}
-        </span>
+      render: (schedule: Date) => (
+        <div className="space-y-1">
+          <div className="text-gray-600">
+            {moment(new Date(schedule)).format('DD MMM YYYY HH:mm')}
+          </div>
+          <div className="text-sm text-gray-500">
+            {getRemainingTime(schedule)}
+          </div>
+        </div>
       ),
     },
     {
@@ -167,8 +344,21 @@ const DoctorDashboard = () => {
       title: 'Actions',
       key: 'actions',
       render: (_: any, record: Appointment) => {
-        const hasMeetingLink = !!record.meeting_link;
-    
+        const hasMeetingLink = Boolean(record.meeting_link);
+        const diffInMinutes = checkTimeValidity(record.schedule);
+        const isJoinable = hasMeetingLink && (diffInMinutes <= 10 && diffInMinutes >= -60);
+        const canDiagnose = canSetDiagnosis(record);
+
+      console.log('Render action button:', {
+        id: record.id,
+        hasMeetingLink,
+        diffInMinutes,
+        isJoinable,
+        status: record.status,
+        schedule: moment(record.schedule).format('YYYY-MM-DD HH:mm:ss'),
+        currentTime: moment().format('YYYY-MM-DD HH:mm:ss')
+      });
+
         return (
           <div className="space-x-2">
             {record.status === AppointmentStatus.PENDING && (
@@ -193,6 +383,7 @@ const DoctorDashboard = () => {
                 </Button>
               </>
             )}
+            
             {record.status === AppointmentStatus.APPROVED && (
               <Button
                 type="default"
@@ -203,7 +394,9 @@ const DoctorDashboard = () => {
                 Set Meeting Link
               </Button>
             )}
-            {record.status === AppointmentStatus.PAID && (
+
+            {(record.status === AppointmentStatus.PAID || 
+              record.status === AppointmentStatus.AWAITING_JOIN_MEETING) && (
               <>
                 {!hasMeetingLink ? (
                   <Button
@@ -215,72 +408,40 @@ const DoctorDashboard = () => {
                     Set Meeting Link
                   </Button>
                 ) : (
-                  <Button
-                    type="primary"
-                    size="small"
-                    className="bg-green-500 hover:bg-green-600"
-                    onClick={() => window.open(record.meeting_link, '_blank')}
-                  >
-                    Join Meet
-                  </Button>
+                  <Tooltip title={!isJoinable ? getRemainingTime(record.schedule) : 'Join the meeting now'}>
+                    <Button
+                      type="primary"
+                      size="small"
+                      className={`${isJoinable ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400'}`}
+                      onClick={() => isJoinable && handleJoinMeeting(record.id, record.meeting_link!)}
+                      disabled={!isJoinable}
+                    >
+                      Join Meet ({Math.floor(diffInMinutes)} min)
+                    </Button>
+                  </Tooltip>
                 )}
               </>
+            )}
+
+            {record.status === AppointmentStatus.IN_PROGRESS && (
+              <Tooltip title={!canDiagnose ? 'Consultation must be at least 10 minutes long' : 'Set diagnosis and notes'}>
+                <Button
+                  type="primary"
+                  size="small"
+                  className={`${canDiagnose ? 'bg-purple-500 hover:bg-purple-600' : 'bg-gray-400'}`}
+                  onClick={() => canDiagnose && handleModalOpen(record.id, 'diagnosis')}
+                  disabled={!canDiagnose}
+                >
+                  Set Diagnosis
+                </Button>
+              </Tooltip>
             )}
           </div>
         );
       },
-    }    
+    }
   ];
 
-  const renderModalContent = () => {
-    switch (modal.type) {
-      case 'meetingLink':
-        return (
-          <Input
-            placeholder="Enter Google Meet link"
-            value={newMeetingLink}
-            onChange={(e) => setNewMeetingLink(e.target.value)}
-            className="w-full"
-          />
-        );
-      case 'reject':
-        return (
-          <TextArea
-            placeholder="Enter rejection reason"
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            rows={4}
-            className="w-full"
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  const getModalTitle = () => {
-    switch (modal.type) {
-      case 'meetingLink':
-        return 'Set Meeting Link';
-      case 'reject':
-        return 'Rejection Reason';
-      default:
-        return '';
-    }
-  };
-
-  const handleModalSubmit = () => {
-    if (!modal.appointmentId) return;
-
-    switch (modal.type) {
-      case 'meetingLink':
-        handleSetMeetingLink();
-        break;
-      case 'reject':
-        handleUpdateStatus(modal.appointmentId, 'reject');
-        break;
-    }
-  };
 
   return (
     <DoctorLayout>

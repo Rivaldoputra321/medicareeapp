@@ -22,32 +22,8 @@ const DoctorSidebar = () => {
       key: 'appointments',
       icon: <CalendarOutlined />,
       label: 'Appointments',
-      onClick: () => router.push('/dashboard/doctor/appointments')
+      onClick: () => router.push('/dashboard/doctor/')
     },
-    {
-      key: 'schedule',
-      icon: <ClockCircleOutlined />,
-      label: 'My Schedule',
-      onClick: () => router.push('/dashboard/doctor/schedule')
-    },
-    {
-      key: 'patients',
-      icon: <UserOutlined />,
-      label: 'My Patients',
-      onClick: () => router.push('/dashboard/doctor/patients')
-    },
-    {
-      key: 'consultations',
-      icon: <CheckCircleOutlined />,
-      label: 'Consultations',
-      onClick: () => router.push('/dashboard/doctor/consultations')
-    },
-    {
-      key: 'profile',
-      icon: <SettingOutlined />,
-      label: 'Profile Settings',
-      onClick: () => router.push('/dashboard/doctor/profile')
-    }
   ];
 
   const getSelectedKey = () => {
