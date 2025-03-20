@@ -81,6 +81,15 @@ const AppointmentHistory = () => {
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   const getStatusStyle = (status: AppointmentStatus) => {
     const styles = {
       [AppointmentStatus.PENDING]: {
@@ -326,10 +335,30 @@ const AppointmentHistory = () => {
                       <div className="flex justify-between items-center mb-4">
                         <span className="text-sm text-gray-600">Biaya Konsultasi</span>
                         <span className="font-semibold text-gray-900">
-                          Rp {(appointment.transaction?.amount || appointment.doctor?.price || 0).toLocaleString()}
+                          {formatCurrency(Number(appointment.transaction?.amount || appointment.doctor?.price || 0))}
                         </span>
                       </div>
 
+                      {/* Diagnosis Information (for completed appointments) */}
+                      {appointment.status === AppointmentStatus.COMPLETED && appointment.diagnosis && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">
+                            Hasil Diagnosis
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-gray-600">Diagnosis:</span>
+                              <p className="text-sm text-gray-900">{appointment.diagnosis}</p>
+                            </div>
+                            {appointment.note && (
+                              <div className="flex flex-col">
+                                <span className="text-sm text-gray-600">Catatan Tambahan:</span>
+                                <p className="text-sm text-gray-900">{appointment.note}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {/* Action Buttons */}
                       <div className="space-y-4">
                         {appointment.status === AppointmentStatus.AWAITING_PAYMENT && (

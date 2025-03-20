@@ -19,7 +19,7 @@ const DoctorNavbar = () => {
 
   useEffect(() => {
     const savedUser = getCurrentUser();
-    if (savedUser?.user_type === 'doctor') {
+    if (savedUser?.user_type === 'DOCTOR') {
       setUser(savedUser);
     } else {
       router.push('/unauthorized');
@@ -52,8 +52,8 @@ const DoctorNavbar = () => {
                 />
               </div>
               <div className="flex flex-col">
-                <span className="font-semibold text-gray-700">Dr. {user?.name || 'Doctor'}</span>
-                <span className="text-xs text-gray-500 capitalize">{ typeof doctor?.spesialist === 'object' ? doctor?.spesialist.name : doctor?.spesialist || 'Specialist'}</span>
+                <span className="font-semibold text-gray-700">{user?.name || 'Doctor'}</span>
+                <span className="text-xs text-gray-500 capitalize">{ user?.role}</span>
               </div>
             </div>
             

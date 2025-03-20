@@ -22,7 +22,7 @@ export const useAuth = () => {
         return;
       }
 
-      if (currentUser?.user_type !== 'doctor' && pathname !== '/unauthorized') {
+      if (currentUser?.user_type !== 'DOCTOR' && pathname !== '/unauthorized') {
         router.push('/unauthorized');
         return;
       }

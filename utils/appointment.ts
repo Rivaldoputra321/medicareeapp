@@ -1,3 +1,5 @@
+//appointment.ts
+
 import axios from 'axios';
 import { api } from './api';
 
@@ -50,6 +52,10 @@ export interface Doctor {
 
 export interface Patient {
   id: string;
+  date_of_birth: string;
+  gender: string;
+  height: number;
+  weight: number;
   user: {
     id: string;
     name: string;
@@ -116,6 +122,14 @@ export interface PaginatedResponse<T> {
     totalPages: number;
   };
 }
+
+interface TransactionListResponse extends PaginatedResponse<Appointment> {
+  monthlyAdminTotal?: number;
+  monthlyDoctorTotal?: number;
+}
+
+
+interface ConsultationHistoryResponse extends PaginatedResponse<Appointment> {}
 
 // API Functions with proper error handling
 export const createAppointment = async (appointmentData: CreateAppointmentDto): Promise<Appointment> => {
@@ -233,6 +247,118 @@ export const getAppointmentsByStatus = async (
     console.log('error')
     if (axios.isAxiosError(error)) {
       throw new Error(error.response?.data?.message || 'Failed to fetch appointments');
+    }
+    throw error;
+  }
+};
+
+
+// Doctor Consultation Endpoints
+export const getDoctorConsultations = async (
+  search?: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<ConsultationHistoryResponse> => {
+  try {
+    const response = await api.get<ConsultationHistoryResponse>(
+      '/appointments/doctor/consultations',
+      {
+        params: {
+          search,
+          page,
+          limit
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch doctor consultations');
+    }
+    throw error;
+  }
+};
+
+// Admin Report Endpoints
+export const getAdminAppointmentReport = async (
+  status?: AppointmentStatus[],
+  page: number = 1,
+  limit: number = 10
+): Promise<PaginatedResponse<Appointment>> => {
+  try {
+    const response = await api.get<PaginatedResponse<Appointment>>(
+      '/appointments/admin/report',
+      {
+        params: {
+          status,
+          page,
+          limit
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch appointment report');
+    }
+    throw error;
+  }
+};
+
+// Transaction List Endpoints
+export const getAdminTransactionList = async (
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<TransactionListResponse> => {
+  try {
+    const response = await api.get<TransactionListResponse>(
+      '/appointments/admin/list',
+      {
+        params: {
+          page,
+          limit,
+          search,
+          startDate: startDate?.toISOString(),
+          endDate: endDate?.toISOString()
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch admin transaction list');
+    }
+    throw error;
+  }
+};
+
+export const getDoctorTransactionList = async (
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<TransactionListResponse> => {
+  try {
+    const response = await api.get<TransactionListResponse>(
+      '/appointments/doctor/list',
+      {
+        params: {
+          page,
+          limit,
+          search,
+          startDate: startDate?.toISOString(),
+          endDate: endDate?.toISOString()
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch doctor transaction list');
     }
     throw error;
   }

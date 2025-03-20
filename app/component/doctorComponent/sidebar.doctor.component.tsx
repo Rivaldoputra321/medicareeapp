@@ -24,14 +24,26 @@ const DoctorSidebar = () => {
       label: 'Appointments',
       onClick: () => router.push('/dashboard/doctor/')
     },
+
+    {
+      key: 'patients',
+      icon: <CalendarOutlined />,
+      label: 'Patients',
+      onClick: () => router.push('/dashboard/doctor/medical_history/')
+    },
+
+    {
+      key: 'transactions',
+      icon: <CalendarOutlined />,
+      label: 'Transactions',
+      onClick: () => router.push('/dashboard/doctor/transaction/')
+    },
   ];
 
   const getSelectedKey = () => {
     if (pathname?.includes('/dashboard/doctor/appointments')) return 'appointments';
-    if (pathname?.includes('/dashboard/doctor/schedule')) return 'schedule';
-    if (pathname?.includes('/dashboard/doctor/patients')) return 'patients';
-    if (pathname?.includes('/dashboard/doctor/consultations')) return 'consultations';
-    if (pathname?.includes('/dashboard/doctor/profile')) return 'profile';
+    if (pathname?.includes('/dashboard/doctor/medical_history')) return 'patients';
+    if (pathname?.includes('/dashboard/doctor/transaction')) return 'tansactions';
     return 'appointments';
   };
 

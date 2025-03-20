@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { fetchPatientId, Patient, updatePatientProfile } from '@/utils/patient';
-import { getCurrentUser } from '@/utils/auth';
+import { getCurrentUser, logout } from '@/utils/auth'; // Import the logout function
 import defaultProfilePic from '@/public/default-profile.png';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
@@ -186,6 +186,11 @@ const Profile = () => {
     setError('');
   };
 
+  const handleLogout = () => {
+    logout();
+    router.push('/signin');
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -198,15 +203,7 @@ const Profile = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 max-w-3xl">
         {/* Header with Back Button */}
-        <div className="mb-6 flex items-center">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            <span>Back</span>
-          </button>
-        </div>
+        
 
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           {/* Profile Header */}
@@ -334,42 +331,54 @@ const Profile = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-8 flex justify-center space-x-4">
+            <div className="flex justify-between items-center mt-6">
               {!isEditing ? (
+                // Button Edit Profile hanya mengubah state, tidak langsung update
                 <button
                   type="button"
-                  onClick={handleStartEditing}
-                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors shadow-sm"
+                  onClick={() => setIsEditing(true)} // Hanya mengubah state
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Edit Profile
                 </button>
               ) : (
-                <>
+                <div className="flex gap-4">
+                  {/* Pastikan tombol Save hanya menyimpan data saat diklik */}
                   <button
                     type="submit"
-                    disabled={saveLoading}
-                    className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors shadow-sm disabled:bg-green-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                   >
-                    {saveLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
+                    Save
                   </button>
                   <button
                     type="button"
-                    onClick={handleCancel}
-                    disabled={saveLoading}
-                    className="px-6 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    onClick={() => setIsEditing(false)} // Kembali ke mode tampilan normal
+                    className="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition"
                   >
                     Cancel
                   </button>
-                </>
+                </div>
               )}
+
+        
+              <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => window.history.back()} // Fungsi kembali ke halaman sebelumnya
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                  >
+                    Logout
+                  </button>
+              </div>
             </div>
+
           </form>
         </div>
       </div>

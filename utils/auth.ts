@@ -3,7 +3,7 @@ import Cookies from 'js-cookie';
 export interface TokenPayload {
   sub: string;
   email: string;
-  roleId: string;
+  role: string;
   photo_profile?: string | '';
   name: string;
   iat: number;
@@ -20,7 +20,7 @@ export interface User {
   photo_profile?: string | '';
   name: string;
   email: string;
-  roleId: string;
+  role: string;
   user_type?: string;
 }
 
@@ -30,11 +30,6 @@ export interface LoginResponse {
   refresh_token: string;
 }
 
-export const roleMap: Record<string, string> = {
-  '0adae9e2-92e1-4317-a531-6d5a4ea8a244': 'patient',
-  'c3b9adcb-5e97-44f8-a06c-7ed0373702dd': 'admin',
-  '6c100448-ec63-4577-a94f-9a22cc42abc3': 'doctor',
-};
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const response = await fetch(process.env.NEXT_PUBLIC_BACKEND_URL + '/auth/login', {
@@ -55,9 +50,9 @@ export async function login(email: string, password: string): Promise<LoginRespo
     id: decoded.sub,
     email: decoded.email,
     name: decoded.name,
-    roleId: decoded.roleId,
+    role: decoded.role,
     photo_profile: '', // Fallback jika photo_profile tidak tersedia
-    user_type: roleMap[decoded.roleId] || 'unknown',
+    user_type: decoded.role || 'unknown',
   };
 
   if (user.user_type === 'unknown') {
@@ -101,19 +96,21 @@ export function getCurrentUser(): User | null {
 
   try {
     const decoded: TokenPayload = jwtDecode(token);
+    console.log('Decoded token payload:', decoded); // Debugging
     return {
       id: decoded.sub,
       email: decoded.email,
       name: decoded.name,
-      roleId: decoded.roleId,
-      photo_profile: decoded.photo_profile, // Fallback jika photo_profile tidak tersedia
-      user_type: roleMap[decoded.roleId] || 'unknown',
+      role: decoded.role,
+      photo_profile: decoded.photo_profile,
+      user_type: decoded.role || 'unknown',
     };
   } catch (error) {
     console.error('Invalid token', error);
     return null;
   }
 }
+
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refresh_token');

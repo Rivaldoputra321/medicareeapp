@@ -1,7 +1,8 @@
 {
-  "/(auth)/signin/page": "app/(auth)/signin/page.js",
-  "/(public)/doctors/[spesialistId]/page": "app/(public)/doctors/[spesialistId]/page.js",
-  "/(public)/doctors/doctor/[id]/page": "app/(public)/doctors/doctor/[id]/page.js",
   "/(public)/payacc/page": "app/(public)/payacc/page.js",
-  "/(protected)/dashboard/doctor/page": "app/(protected)/dashboard/doctor/page.js"
+  "/(protected)/dashboard/admin/manage-spesialists/page": "app/(protected)/dashboard/admin/manage-spesialists/page.js",
+  "/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page": "app/(protected)/dashboard/admin/manage-spesialists/form_create_spesialist/page.js",
+  "/(protected)/dashboard/admin/appointment-report/page": "app/(protected)/dashboard/admin/appointment-report/page.js",
+  "/(protected)/dashboard/admin/transaction-report/page": "app/(protected)/dashboard/admin/transaction-report/page.js",
+  "/(protected)/dashboard/admin/manage-doctors/page": "app/(protected)/dashboard/admin/manage-doctors/page.js"
 }

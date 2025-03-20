@@ -42,13 +42,13 @@ export default function Login() {
       }).then(() => {
         // Redirect setelah alert
         switch (response.user.user_type) {
-          case 'admin':
+          case 'ADMIN':
             router.push('/dashboard/admin/manage-doctors');
             break;
-          case 'doctor':
+          case 'DOCTOR':
             router.push('/dashboard/doctor');
             break;
-          case 'patient':
+          case 'PATIENT':
             router.push('/');
             break;
           default:

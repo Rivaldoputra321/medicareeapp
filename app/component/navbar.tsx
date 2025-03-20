@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { LogOut, User as UserIcon } from 'lucide-react';
 import defaultProfilePic from '@/public/default-profile.png';
 import { getCurrentUser, logout, User } from '@/utils/auth';
 
@@ -35,10 +36,15 @@ export default function Navbar() {
     return (
         <nav className="bg-white shadow fixed py-3 top-0 left-0 right-0 z-10">
             <div className="max-w-7xl mx-auto px-4">
-                <div className="flex items-center py-3">
-                    <span className="text-green-500 text-2xl font-bold">Medi</span>
-                    <span className="text-black text-2xl font-bold">Care</span>
-                    <div className="flex space-x-4 ml-6">
+                <div className="flex items-center justify-between py-3">
+                    {/* Logo */}
+                    <div className="flex items-center">
+                        <span className="text-green-500 text-2xl font-bold">Medi</span>
+                        <span className="text-black text-2xl font-bold">Care</span>
+                    </div>
+
+                    {/* Navigation Links */}
+                    <div className="ml-8 flex space-x-4">
                         <Link href="/" className="text-green-600 hover:text-green-500 font-semibold">
                             Beranda
                         </Link>
@@ -46,14 +52,16 @@ export default function Navbar() {
                             Riwayat
                         </Link>
                     </div>
+
+                    {/* User Profile / Login Button */}
                     <div className="ml-auto flex items-center space-x-4">
-                        {user && user.user_type === 'patient' ? (
+                        {user && user.user_type === 'PATIENT' ? (
                             <div className="relative" ref={dropdownRef}>
-                                <div 
+                                <div
                                     className="flex items-center space-x-3 cursor-pointer"
                                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                                 >
-                                    <div className="w-10 h-10 rounded-full overflow-hidden">
+                                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-300">
                                         <Image
                                             src={user?.photo_profile || defaultProfilePic}
                                             alt="Profile"
@@ -68,13 +76,24 @@ export default function Navbar() {
                                     </div>
                                 </div>
 
+                                {/* Dropdown Menu */}
                                 {isDropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                        <a href="/patient/profile">Profile</a>
+                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                                        <Link 
+                                            href="/patient/profile"
+                                            className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100"
+                                        >
+                                            <UserIcon className="w-4 h-4 mr-2" />
+                                            Profile
+                                        </Link>
+                                        
+                                        <div className="border-t border-gray-200 my-1"></div>
+                                        
                                         <button
                                             onClick={handleLogout}
-                                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                                            className="flex items-center w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
                                         >
+                                            <LogOut className="w-4 h-4 mr-2" />
                                             Logout
                                         </button>
                                     </div>
