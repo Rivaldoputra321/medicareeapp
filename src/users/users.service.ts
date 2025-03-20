@@ -64,7 +64,7 @@ export class UsersService {
   async findUserByEmail(email: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['patient', 'doctor'],
+      relations: ['role','patient', 'doctor'],
     });
 
     if (!user) {
@@ -77,11 +77,13 @@ export class UsersService {
   async findUserById(id: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
+      relations: ['role'],
     });
 
     if (!user) {
       throw new HttpException('User tidak ditemukan', HttpStatus.NOT_FOUND);
     }
+    console.log('findUserById result:', user); // Debugging
 
     return user;
   }

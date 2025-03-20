@@ -7,7 +7,7 @@ import { genders } from 'src/entities/patients.entity';
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsString()
   @IsOptional()
-  name?: string;
+  name: string;
 
   // Patient-specific fields
   @IsOptional()

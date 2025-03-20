@@ -74,7 +74,7 @@ export class PatientService {
       try {
         const patient = await this.patientRepository.findOne({
           where: { id: patientId },
-          relations: ['user'],
+          relations: ['user', 'user.role'],
         });
     
         if (!patient) {
@@ -131,6 +131,7 @@ export class PatientService {
     async getUserPatient(userId: string) { 
       const patient = await this.patientRepository.createQueryBuilder('patient')
         .leftJoin('patient.user', 'user')
+        .leftJoinAndSelect('user.role', 'role') 
         .addSelect(['user.id', 'user.name', 'user.email', 'user.photo_profile'])
         .where('user.id = :userId', { userId })
         .getOne();

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException, Query, Patch, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Param, Put, UseGuards, Request, Logger, Get, ParseEnumPipe, BadRequestException, UnauthorizedException, Query, Patch, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { AppointmentService } from './appointment.service';
 import { JwtGuard } from 'src/auth/guard/authenticated.guard';
@@ -8,13 +8,18 @@ import { completeDto, RescheduleDto, SetMeetingLinkDto, UpdateAppointmentStatusD
 import { PaymentStatus } from 'src/entities/transactions.entity';
 import { User } from 'src/entities/users.entity';
 import { AppointmentStatus } from 'src/entities/appoinments.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Doctor } from 'src/entities/doctors.entity';
+import { Repository } from 'typeorm';
 
 
 @Controller('appointments')
 
 export class AppointmentController {
   private readonly logger = new Logger(AppointmentController.name);
-  constructor(private readonly appointmentService: AppointmentService) {}
+  constructor(private readonly appointmentService: AppointmentService,  
+    @InjectRepository(Doctor)
+    private doctorRepo: Repository<Doctor>,) {}
 
   @Post()
   @UseGuards(JwtGuard, RoleGuard)
@@ -111,35 +116,13 @@ export class AppointmentController {
     });
   
     const userId = req.user?.sub;
-    const roleId = req.user?.roleId;
-  
-    // Map roleId to peran type
-    let userRole: peran.PATIENT | peran.DOCTOR;
-    
-    // These should match your database role IDs
-    const ROLE_MAPPINGS = {
-      // Add your actual role IDs here
-      '0adae9e2-92e1-4317-a531-6d5a4ea8a244': peran.PATIENT,  // Patient role ID
-      '6c100448-ec63-4577-a94f-9a22cc42abc3': peran.DOCTOR     // Replace with actual doctor role ID
-    };
-  
-    const mappedRole = ROLE_MAPPINGS[roleId];
-    if (mappedRole !== peran.PATIENT && mappedRole !== peran.DOCTOR) {
-      throw new HttpException('Invalid role type', HttpStatus.BAD_REQUEST);
-    }
-    userRole = mappedRole;
-  
-    console.log('Role mapping:', {
-      roleId,
-      mappedRole: userRole
-    });
+    const userRole = req.user?.role; // Directly use the role from payload
   
     if (!userId || !userRole) {
       console.error('Validation failed:', {
         hasUserId: !!userId,
         hasRole: !!userRole,
         userId,
-        roleId,
         userRole
       });
       
@@ -261,37 +244,43 @@ export class AppointmentController {
   }
 
   @Get('list/:statusGroup')
-@UseGuards(JwtGuard)
-async getAppointmentsByStatus(
-  @Param('statusGroup') statusGroup: string,
-  @Query('page') page: number = 1, // Pagination: Default halaman pertama
-  @Query('limit') limit: number = 10, // Pagination: Default jumlah item per halaman
-  @Request() req
-) {
-  // Get user ID dari JWT token
-  const userId = req.user?.sub;
-  if (!userId) {
-    throw new UnauthorizedException('Invalid user token');
+  @UseGuards(JwtGuard)
+  async getAppointmentsByStatus(
+    @Param('statusGroup') statusGroup: string,
+    @Query('page') page: number = 1, // Default halaman pertama
+    @Query('limit') limit: number = 10, // Default jumlah item per halaman
+    @Request() req
+  ) {
+    // Get user ID dari JWT token
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid user token');
+    }
+    
+    // Pastikan user memiliki properti role
+    if (!req.user?.role) {
+      throw new UnauthorizedException('User role not found');
+    }
+  
+    // Validate status group
+    const validStatusGroups = ['waiting', 'failed', 'completed'];
+    if (!validStatusGroups.includes(statusGroup)) {
+      throw new BadRequestException('Invalid status group');
+    }
+  
+    // Tentukan tipe user berdasarkan role (sebagai string)
+    const userType = req.user.role as peran.DOCTOR | peran.PATIENT;
+  
+    // Panggil service untuk mendapatkan data janji temu
+    return await this.appointmentService.getAppointmentsByStatus(
+      userId,
+      userType,
+      statusGroup as 'waiting' | 'failed' | 'completed',
+      page,
+      limit
+    );
   }
-
-  // Validate status group
-  const validStatusGroups = ['waiting', 'failed', 'completed'];
-  if (!validStatusGroups.includes(statusGroup)) {
-    throw new BadRequestException('Invalid status group');
-  }
-
-  // Tentukan tipe user berdasarkan peran
-  const userType = req.user?.role as peran.DOCTOR | peran.PATIENT;
-
-  // Panggil service untuk mendapatkan data janji temu
-  return await this.appointmentService.getAppointmentsByStatus(
-    userId,
-    userType,
-    statusGroup as 'waiting' | 'failed' | 'completed',
-    page,
-    limit
-  );
-}
+  
 
 @Patch('diagnosis/:id')
 @UseGuards(JwtGuard, RoleGuard)
@@ -318,13 +307,22 @@ async setDiagnosis(
 @Roles(peran.DOCTOR)
 async getDoctorConsultations(
   @Request() req,
+  @Query('search') search?: string,
   @Query('page') page: number = 1,
   @Query('limit') limit: number = 10
 ) {
+  const userId = req.user?.sub;
+  if (!userId) {
+    throw new UnauthorizedException('Invalid user token');
+  }
+
+  // Ambil doctorId berdasarkan userId
+  const doctor = await this.doctorRepo.findOne({ where: { user: { id: userId } } });
   return this.appointmentService.getDoctorConsultationHistory(
-    req.user.sub,
+    doctor.id,
     page,
-    limit
+    limit,
+    search
   );
 }
 
@@ -333,18 +331,12 @@ async getDoctorConsultations(
 @Roles(peran.ADMIN)
 async getAdminAppointmentReport(
   @Query('status') status?: AppointmentStatus[],
-  @Query('startDate') startDate?: string,
-  @Query('endDate') endDate?: string,
   @Query('page') page: number = 1,
   @Query('limit') limit: number = 10
 ) {
-  const start = startDate ? new Date(startDate) : undefined;
-  const end = endDate ? new Date(endDate) : undefined;
 
   return this.appointmentService.getAdminAppointmentReport(
     status,
-    start,
-    end,
     page,
     limit
   );
@@ -373,27 +365,40 @@ async getAdminAppointmentReport(
   }
 
   @Get('doctor/list')
-  @UseGuards(JwtGuard, RoleGuard)
-  @Roles(peran.DOCTOR)
-  async getDoctorTransactionList(
-    @Request() req,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
-  ) {
-    const start = startDate ? new Date(startDate) : undefined;
-    const end = endDate ? new Date(endDate) : undefined;
-
-    return this.appointmentService.getDoctorTransactionList(
-      req.user.sub,
-      page,
-      limit,
-      search,
-      start,
-      end
-    );
+@UseGuards(JwtGuard, RoleGuard)
+@Roles(peran.DOCTOR)
+async getDoctorTransactionList(
+  @Request() req,
+  @Query('page') page?: number,
+  @Query('limit') limit?: number,
+  @Query('search') search?: string,
+  @Query('startDate') startDate?: string,
+  @Query('endDate') endDate?: string
+) {
+  const userId = req.user?.sub;
+  if (!userId) {
+    throw new UnauthorizedException('Invalid user token');
   }
+
+  //  Ambil doctorId berdasarkan userId
+  const doctor = await this.doctorRepo.findOne({ where: { user: { id: userId } } });
+
+  if (!doctor) {
+    throw new NotFoundException('Doctor not found');
+  }
+
+  const start = startDate ? new Date(startDate) : undefined;
+  const end = endDate ? new Date(endDate) : undefined;
+
+  return this.appointmentService.getDoctorTransactionList(
+    doctor.id, //  Gunakan doctor.id, bukan userId
+    page,
+    limit,
+    search,
+    start,
+    end
+  );
+}
+
 
 }

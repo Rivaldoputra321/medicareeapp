@@ -14,7 +14,9 @@ export class AuthController {
    constructor(
       private authService: AuthService,
       private userService: UsersService,
-    ) {}
+    ) {
+      console.log('AuthService:', this.authService);
+    }
 
 
     @Post('login')
@@ -41,7 +43,7 @@ export class AuthController {
         }
   
         // Proses refresh token melalui service
-        return await this.authService.refreshToken(refreshToken);
+        return this.authService.refreshToken(refreshToken);
       } catch (error) {
         console.error('Error refreshing token:', error.message);
         throw new UnauthorizedException('Failed to refresh token');

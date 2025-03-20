@@ -50,22 +50,26 @@ export class AuthService {
       // Payload untuk JWT
       
       const baseUrl = 'http://localhost:8000';
+      const profilePath =
+       user.photo_profile && user.photo_profile.trim() !== ''
+    ? user.role.name === peran.DOCTOR // Gunakan `user.role.name`, bukan `user.roleId`
+      ? `${baseUrl}/uploads/doctors/${user.photo_profile}`
+      : `${baseUrl}/uploads/patient/${user.photo_profile}`
+    : null;
 
       const payload = { 
         sub: user.id, 
         email: user.email, 
-        roleId: user.roleId, 
+        role: user.role.name, 
         name: user.name,
         // Tambahkan full URL untuk photo_profile jika ada
-        photo_profile: user.roleId === peran.DOCTOR 
-          ? `${baseUrl}/uploads/doctors/${user.photo_profile}` 
-          : `${baseUrl}/uploads/patient/${user.photo_profile}`,
+        photo_profile: profilePath,
       };
       
       // Membuat token JWT dengan masa berlaku 1 jam
       const accessToken = this.jwtService.sign(payload, {
         secret: process.env.jwtSecretKey, 
-        expiresIn: '1h',
+        expiresIn: '7d',
       });
       
       // Membuat refresh token dengan masa berlaku 7 hari

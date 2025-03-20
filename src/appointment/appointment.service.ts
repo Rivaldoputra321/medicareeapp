@@ -17,6 +17,7 @@ import { peran } from 'src/entities/roles.entity';
 export class AppointmentService {
   private readonly logger = new Logger(AppointmentService.name);
   private readonly WIB_TIMEZONE = 'Asia/Jakarta';
+  private readonly baseUrl = 'http://localhost:8000';
   
   constructor(
     @InjectRepository(Appointment)
@@ -43,9 +44,6 @@ export class AppointmentService {
     // Assuming business hours are 8 AM - 5 PM WIB
     return true;
   }
-
-  
-
   async createAppointment(
     userId: string, 
     createAppointmentDto: CreateAppointmentDto
@@ -787,143 +785,157 @@ async checkIncompleteAppointments() {
   }
 }
 
-  @Cron('*/1 * * * *')
-  async handleTimeouts() {
-    try {
-      const now = new Date();
-      
-      // 1. Handle pending appointments that have passed their scheduled time
-      const expiredPendingAppointments = await this.appointmentRepo.find({
-        where: {
-          status: AppointmentStatus.PENDING,
-          schedule: LessThan(now),
-        },
-        relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
-      });
-  
-      for (const appointment of expiredPendingAppointments) {
-        this.logger.log(`Cancelling expired pending appointment ${appointment.id}`);
-        appointment.status = AppointmentStatus.CANCELLED;
-      
-        await this.appointmentRepo.save(appointment);
-        
-        try {
-          await this.emailService.sendAppointmentCancellation(
-            appointment,
-            'Your appointment has been cancelled as the doctor did not respond before the scheduled time.'
-          );
-        } catch (error) {
-          this.logger.error(`Failed to send cancellation notification for appointment ${appointment.id}:`, error);
-        }
-      }
-
-      const expiredAwaitingAppointments = await this.appointmentRepo.find({
-        where: {
-          status: AppointmentStatus.AWAITING_JOIN_LINK,
-          schedule: LessThan(now),
-        },
-        relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
-      });
-  
-      for (const appointment of expiredAwaitingAppointments) {
-        this.logger.log(`Cancelling expired pending appointment ${appointment.id}`);
-        appointment.status = AppointmentStatus.CANCELLED;
-      
-        await this.appointmentRepo.save(appointment);
-        
-        try {
-          await this.emailService.sendAppointmentCancellation(
-            appointment,
-            'Your appointment has been cancelled as the doctor did not respond before the scheduled time.'
-          );
-        } catch (error) {
-          this.logger.error(`Failed to send cancellation notification for appointment ${appointment.id}:`, error);
-        }
-      }
-
-      // 2. Handle unpaid appointments that have passed their scheduled time
-      const unpaidAppointments = await this.appointmentRepo.find({
-        where: {
-          status: AppointmentStatus.AWAITING_PAYMENT,
-          schedule: LessThan(now),
-        },
-        relations: ['doctor', 'doctor.user', 'patient', 'patient.user', 'transaction'],
-      });
-
-      for (const appointment of unpaidAppointments) {
-        this.logger.log(`Cancelling unpaid appointment ${appointment.id} that passed schedule time`);
-        
-        // Update appointment status
-        appointment.status = AppointmentStatus.CANCELLED;
-        
-        // Update associated transaction if it exists
-        if (appointment.transaction) {
-          appointment.transaction.status = PaymentStatus.EXPIRE;
-          await this.transactionRepo.save(appointment.transaction);
-        }
-        
-        await this.appointmentRepo.save(appointment);
-        
-        try {
-          await this.emailService.sendAppointmentCancellation(
-            appointment,
-            'Your appointment has been cancelled as payment was not received before the scheduled time.'
-          );
-        } catch (error) {
-          this.logger.error(`Failed to send cancellation notification for unpaid appointment ${appointment.id}:`, error);
-        }
-      }
-  
-      // 3. Handle paid appointments without meeting links
-      const paidAppointmentsWithoutLink = await this.appointmentRepo.find({
-        where: {
-          status: AppointmentStatus.PAID,
-          meeting_link: IsNull(),
-        },
-        relations: ['transaction', 'doctor', 'doctor.user', 'patient', 'patient.user'],
-      });
-  
-      for (const appointment of paidAppointmentsWithoutLink) {
-        const appointmentTime = new Date(appointment.schedule);
-        const timeUntilAppointment = appointmentTime.getTime() - now.getTime();
-        const hoursUntilAppointment = timeUntilAppointment / (1000 * 60 * 60);
-        
-        if (hoursUntilAppointment <= 24) {
-          try {
-            await this.emailService.sendMeetingLinkReminder(appointment);
-            this.logger.log(`Sent meeting link reminder for appointment ${appointment.id}`);
-          } catch (error) {
-            this.logger.error(`Failed to send meeting link reminder for appointment ${appointment.id}:`, error);
-          }
-        }
-        
-        if (hoursUntilAppointment <= 0) {
-          this.logger.log(`Processing refund for appointment ${appointment.id} due to no meeting link`);
-          
-          appointment.status = AppointmentStatus.CANCELLED;
-          
-          // Ensure transaction exists before processing
-          if (appointment.transaction) {
-            appointment.transaction.status = PaymentStatus.REFUND;
-            await this.transactionRepo.save(appointment.transaction);
-            
-            try {
-              // Use midtransOrderId for refund
-              await this.midtransService.processRefund(appointment.transaction);
-              await this.emailService.sendRefundNotification(appointment);
-            } catch (error) {
-              this.logger.error(`Failed to process refund for appointment ${appointment.id}:`, error);
-            }
-          }
-          
-          await this.appointmentRepo.save(appointment);
-        }
-      }
-    } catch (error) {
-      this.logger.error('Error in handleTimeouts:', error);
-    }
+@Cron('*/1 * * * *')
+async handleTimeouts() {
+  try {
+    const now = new Date();
     
+    // 1. Handle pending appointments that have passed their scheduled time
+    const expiredPendingAppointments = await this.appointmentRepo.find({
+      where: {
+        status: AppointmentStatus.PENDING,
+        schedule: LessThan(now),
+      },
+      relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
+    });
+
+    for (const appointment of expiredPendingAppointments) {
+      this.logger.log(`Cancelling expired pending appointment ${appointment.id}`);
+      appointment.status = AppointmentStatus.CANCELLED;
+    
+      await this.appointmentRepo.save(appointment);
+      
+      try {
+        await this.emailService.sendAppointmentCancellation(
+          appointment,
+          'Your appointment has been cancelled as the doctor did not respond before the scheduled time.'
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send cancellation notification for appointment ${appointment.id}:`, error);
+      }
+    }
+
+    // 2. Handle appointments where no one has joined within 15 minutes
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    
+    const noShowAppointments = await this.appointmentRepo.find({
+      where: {
+        status: AppointmentStatus.AWAITING_JOIN_LINK,
+        schedule: LessThan(fifteenMinutesAgo),
+        is_doctor_present: false,
+        is_patient_present: false
+      },
+      relations: ['doctor', 'doctor.user', 'patient', 'patient.user', 'transaction'],
+    });
+
+    for (const appointment of noShowAppointments) {
+      this.logger.log(`Cancelling appointment ${appointment.id} due to no participants within 15 minutes`);
+      
+      appointment.status = AppointmentStatus.CANCELLED;
+      
+      // If there's a transaction, mark it for refund
+      if (appointment.transaction) {
+        appointment.transaction.status = PaymentStatus.REFUND;
+        await this.transactionRepo.save(appointment.transaction);
+        
+        try {
+          await this.midtransService.processRefund(appointment.transaction);
+          await this.emailService.sendRefundNotification(appointment);
+        } catch (error) {
+          this.logger.error(`Failed to process refund for appointment ${appointment.id}:`, error);
+        }
+      }
+      
+      await this.appointmentRepo.save(appointment);
+      
+      try {
+        await this.emailService.sendAppointmentCancellation(
+          appointment,
+          'Your appointment has been cancelled as no participants joined within 15 minutes of the scheduled time.'
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send cancellation notification for appointment ${appointment.id}:`, error);
+      }
+    }
+
+    // 3. Handle unpaid appointments that have passed their scheduled time
+    const unpaidAppointments = await this.appointmentRepo.find({
+      where: {
+        status: AppointmentStatus.AWAITING_PAYMENT,
+        schedule: LessThan(now),
+      },
+      relations: ['doctor', 'doctor.user', 'patient', 'patient.user', 'transaction'],
+    });
+
+    for (const appointment of unpaidAppointments) {
+      this.logger.log(`Cancelling unpaid appointment ${appointment.id} that passed schedule time`);
+      
+      appointment.status = AppointmentStatus.CANCELLED;
+      
+      if (appointment.transaction) {
+        appointment.transaction.status = PaymentStatus.EXPIRE;
+        await this.transactionRepo.save(appointment.transaction);
+      }
+      
+      await this.appointmentRepo.save(appointment);
+      
+      try {
+        await this.emailService.sendAppointmentCancellation(
+          appointment,
+          'Your appointment has been cancelled as payment was not received before the scheduled time.'
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send cancellation notification for unpaid appointment ${appointment.id}:`, error);
+      }
+    }
+
+    // 4. Handle paid appointments without meeting links
+    const paidAppointmentsWithoutLink = await this.appointmentRepo.find({
+      where: {
+        status: AppointmentStatus.PAID,
+        meeting_link: IsNull(),
+      },
+      relations: ['transaction', 'doctor', 'doctor.user', 'patient', 'patient.user'],
+    });
+
+    for (const appointment of paidAppointmentsWithoutLink) {
+      const appointmentTime = new Date(appointment.schedule);
+      const timeUntilAppointment = appointmentTime.getTime() - now.getTime();
+      const hoursUntilAppointment = timeUntilAppointment / (1000 * 60 * 60);
+      
+      if (hoursUntilAppointment <= 24) {
+        try {
+          await this.emailService.sendMeetingLinkReminder(appointment);
+          this.logger.log(`Sent meeting link reminder for appointment ${appointment.id}`);
+        } catch (error) {
+          this.logger.error(`Failed to send meeting link reminder for appointment ${appointment.id}:`, error);
+        }
+      }
+      
+      if (hoursUntilAppointment <= 0) {
+        this.logger.log(`Processing refund for appointment ${appointment.id} due to no meeting link`);
+        
+        appointment.status = AppointmentStatus.CANCELLED;
+        
+        if (appointment.transaction) {
+          appointment.transaction.status = PaymentStatus.REFUND;
+          await this.transactionRepo.save(appointment.transaction);
+          
+          try {
+            await this.midtransService.processRefund(appointment.transaction);
+            await this.emailService.sendRefundNotification(appointment);
+          } catch (error) {
+            this.logger.error(`Failed to process refund for appointment ${appointment.id}:`, error);
+          }
+        }
+        
+        await this.appointmentRepo.save(appointment);
+      }
+    }
+  } catch (error) {
+    this.logger.error('Error in handleTimeouts:', error);
   }
+}
   
   async getAppointmentsByStatus(
     userId: string,
@@ -992,13 +1004,13 @@ async checkIncompleteAppointments() {
   
     const [appointments, total] = await baseQuery.getManyAndCount();
   
-    const baseUrl = 'http://localhost:8000';
+
     const transformedAppointments = appointments.map(appointment => {
       if (appointment.doctor?.user?.photo_profile) {
-        appointment.doctor.user.photo_profile = `${baseUrl}/uploads/doctors/${appointment.doctor.user.photo_profile}`;
+        appointment.doctor.user.photo_profile = `${this.baseUrl}/uploads/doctors/${appointment.doctor.user.photo_profile}`;
       }
       if (appointment.patient?.user?.photo_profile) {
-        appointment.patient.user.photo_profile = `${baseUrl}/uploads/patients/${appointment.patient.user.photo_profile}`;
+        appointment.patient.user.photo_profile = `${this.baseUrl}/uploads/patients/${appointment.patient.user.photo_profile}`;
       }
       return appointment;
     });
@@ -1015,15 +1027,20 @@ async checkIncompleteAppointments() {
   }
   
 
-  async getDoctorConsultationHistory(doctorId: string, page: number = 1, limit: number = 10) {
+  async getDoctorConsultationHistory(
+    doctorId: string,
+    page: number = 1,
+    limit: number = 10,
+    search: string
+  ) {
     const offset = (page - 1) * limit;
   
-    const query = this.appointmentRepo.createQueryBuilder('appointment')
+    let query = this.appointmentRepo.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.patient', 'patient')
       .leftJoinAndSelect('patient.user', 'patientUser')
       .where('appointment.doctorId = :doctorId', { doctorId })
-      .andWhere('appointment.status = :status', { 
-        status: AppointmentStatus.COMPLETED 
+      .andWhere('appointment.status = :status', {
+        status: AppointmentStatus.COMPLETED
       })
       .select([
         'appointment.id',
@@ -1039,18 +1056,24 @@ async checkIncompleteAppointments() {
       .skip(offset)
       .take(limit);
   
+    if (search) {
+      query = query.andWhere('LOWER(patientUser.name) LIKE LOWER(:search)', {
+        search: `%${search}%`
+      });
+    }
+  
     const [consultations, total] = await query.getManyAndCount();
   
     // Transform photo URLs
-    const baseUrl = this.configService.get('app.baseUrl');
+  
     const transformedConsultations = consultations.map(consultation => ({
       ...consultation,
       patient: {
         ...consultation.patient,
         user: {
           ...consultation.patient.user,
-          photo_profile: consultation.patient.user.photo_profile 
-            ? `${baseUrl}/uploads/patients/${consultation.patient.user.photo_profile}`
+          photo_profile: consultation.patient.user.photo_profile
+            ? `${this.baseUrl}/uploads/patients/${consultation.patient.user.photo_profile}`
             : null
         }
       }
@@ -1067,10 +1090,9 @@ async checkIncompleteAppointments() {
     };
   }
   
+  
   async getAdminAppointmentReport(
     statusFilter?: AppointmentStatus[],
-    startDate?: Date,
-    endDate?: Date,
     page: number = 1,
     limit: number = 10
   ) {
@@ -1081,19 +1103,25 @@ async checkIncompleteAppointments() {
       .leftJoinAndSelect('doctor.user', 'doctorUser')
       .leftJoinAndSelect('appointment.patient', 'patient')
       .leftJoinAndSelect('patient.user', 'patientUser')
-      .leftJoinAndSelect('appointment.transaction', 'transaction');
+      .select([
+        'appointment.id',
+        'appointment.schedule',
+        
+        'appointment.status',
+        'doctor',
+        'doctorUser.name',
+        'doctorUser.photo_profile',
+        'patient',
+        'patientUser.name',
+        'patientUser.photo_profile',
+      ]);
   
-    // Apply filters
+    // Filter status
     if (statusFilter && statusFilter.length > 0) {
       query.andWhere('appointment.status IN (:...statuses)', { statuses: statusFilter });
     }
   
-    if (startDate && endDate) {
-      query.andWhere('appointment.schedule BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate
-      });
-    }
+    
   
     const [appointments, total] = await query
       .orderBy('appointment.schedule', 'DESC')
@@ -1101,20 +1129,32 @@ async checkIncompleteAppointments() {
       .take(limit)
       .getManyAndCount();
   
-    // Calculate statistics
-    const statistics = {
-      total_appointments: total,
-      completed: appointments.filter(a => a.status === AppointmentStatus.COMPLETED).length,
-      cancelled: appointments.filter(a => a.status === AppointmentStatus.CANCELLED).length,
-      in_progress: appointments.filter(a => a.status === AppointmentStatus.IN_PROGRESS).length,
-      total_revenue: appointments.reduce((sum, app) => {
-        return sum + (app.transaction?.amount || 0);
-      }, 0)
-    };
+    // Transform photo URLs
+
+    const transformedAppointments = appointments.map(appointment => ({
+      ...appointment,
+      doctor: {
+        ...appointment.doctor,
+        user: {
+          ...appointment.doctor.user,
+          photo_profile: appointment.doctor.user.photo_profile
+            ? `${this.baseUrl}/uploads/doctors/${appointment.doctor.user.photo_profile}`
+            : null
+        }
+      },
+      patient: {
+        ...appointment.patient,
+        user: {
+          ...appointment.patient.user,
+          photo_profile: appointment.patient.user.photo_profile
+            ? `${this.baseUrl}/uploads/patients/${appointment.patient.user.photo_profile}`
+            : null
+        }
+      }
+    }));
   
     return {
-      data: appointments,
-      statistics,
+      data: transformedAppointments,
       meta: {
         total,
         page,
@@ -1123,6 +1163,7 @@ async checkIncompleteAppointments() {
       }
     };
   }
+  
   
   async getAdminTransactionList(
     page: number = 1,
@@ -1208,7 +1249,6 @@ async checkIncompleteAppointments() {
       .getRawOne();
 
     // Transform photo URLs
-    const baseUrl = this.configService.get('app.baseUrl');
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       completedAt: transaction.completed_at,
@@ -1218,7 +1258,7 @@ async checkIncompleteAppointments() {
         user: {
           name: transaction.doctor.user.name,
           photo_profile: transaction.doctor.user.photo_profile
-            ? `${baseUrl}/uploads/doctors/${transaction.doctor.user.photo_profile}`
+            ? `${this.baseUrl}/uploads/doctors/${transaction.doctor.user.photo_profile}`
             : null
         }
       },
@@ -1227,7 +1267,7 @@ async checkIncompleteAppointments() {
         user: {
           name: transaction.patient.user.name,
           photo_profile: transaction.patient.user.photo_profile
-            ? `${baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
+            ? `${this.baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
             : null
         }
       },
@@ -1251,7 +1291,7 @@ async checkIncompleteAppointments() {
   }
 
   async getDoctorTransactionList(
-    doctorId: string,
+    doctorId: string, // Menggunakan userId dari JWT
     page: number = 1,
     limit: number = 10,
     search?: string,
@@ -1259,64 +1299,56 @@ async checkIncompleteAppointments() {
     endDate?: Date
   ) {
     const offset = (page - 1) * limit;
-
+  
     const query = this.appointmentRepo.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.patient', 'patient')
-      .innerJoin('patient.user', 'patientUser')
+      .leftJoinAndSelect('patient.user', 'patientUser')
       .leftJoinAndSelect('appointment.transaction', 'transaction')
       .select([
         'appointment.id',
         'appointment.completed_at',
         'appointment.schedule',
-        'patient',
+        'patient.id',
         'patientUser.name',
         'patientUser.photo_profile',
         'transaction'
       ])
-      .where('appointment.doctorId = :doctorId', { doctorId })
+      .where('appointment.doctorId = :doctorId', { doctorId }) // Perbaikan: Gunakan userId, bukan doctorId
       .andWhere('appointment.status = :status', {
         status: AppointmentStatus.COMPLETED
       })
       .andWhere('transaction.status = :transactionStatus', {
         transactionStatus: PaymentStatus.SETTLEMENT
       });
-
+  
     if (search) {
       query.andWhere('patientUser.name ILIKE :search', {
         search: `%${search}%`
       });
     }
-
+  
     if (startDate && endDate) {
       query.andWhere('appointment.completed_at BETWEEN :startDate AND :endDate', {
         startDate,
         endDate
       });
     }
-
+  
     query.orderBy('appointment.completed_at', 'DESC')
       .skip(offset)
       .take(limit);
-
+  
     const [transactions, total] = await query.getManyAndCount();
-
-    // Calculate monthly total for doctor
+  
+    // Hitung total bulanan dokter
     const currentDate = new Date();
-    const firstDayOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const lastDayOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      0
-    );
-
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+  
     const monthlyTotal = await this.appointmentRepo
       .createQueryBuilder('appointment')
       .leftJoin('appointment.transaction', 'transaction')
-      .where('appointment.doctorId = :doctorId', { doctorId })
+      .where('appointment.doctorId = :doctorId', { doctorId }) // Perbaikan di sini juga
       .andWhere('appointment.status = :status', {
         status: AppointmentStatus.COMPLETED
       })
@@ -1329,28 +1361,29 @@ async checkIncompleteAppointments() {
       })
       .select('SUM(transaction.doctorFee)', 'monthlyDoctorTotal')
       .getRawOne();
+  
+    // Transformasi URL foto
 
-    // Transform photo URLs
-    const baseUrl = this.configService.get('app.baseUrl');
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       completedAt: transaction.completed_at,
       schedule: transaction.schedule,
       patient: {
-        ...transaction.patient,
+        id: transaction.patient.id,
         user: {
-          name: transaction.patient.user.name,
+          ...transaction.patient.user,
           photo_profile: transaction.patient.user.photo_profile
-            ? `${baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
+            ? `${this.baseUrl}/uploads/patients/${transaction.patient.user.photo_profile}`
             : null
         }
+       
       },
       transaction: {
         amount: transaction.transaction.amount,
         doctorFee: transaction.transaction.doctorFee
       }
     }));
-
+  
     return {
       data: transformedTransactions,
       meta: {
@@ -1359,7 +1392,7 @@ async checkIncompleteAppointments() {
         limit,
         totalPages: Math.ceil(total / limit)
       },
-      monthlyDoctorTotal: monthlyTotal.monthlyDoctorTotal || 0
+      monthlyDoctorTotal: monthlyTotal?.monthlyDoctorTotal || 0
     };
-  }
+  }  
 }

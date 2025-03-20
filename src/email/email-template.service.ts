@@ -156,9 +156,6 @@ getMeetingLinkReminderTemplate(appointment: Appointment): string {
       </div>
       <p style="color: #ff0000;"><strong>Important Notice:</strong> If no meeting link is provided by the scheduled appointment time, the appointment will be automatically cancelled and the patient will be refunded.</p>
       <p>Please log in to your dashboard to provide the meeting link as soon as possible:</p>
-      <a href="http://localhost:3000/doctor/appointments" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">
-        Provide Meeting Link
-      </a>
     </div>
   `;
 }
